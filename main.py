@@ -569,7 +569,7 @@ class LabelTool():
                     self.plate.pbox = []
                     self.mainPanel.delete(self.bboxIdList[len(self.bboxIdList)-1])
                     self.bboxIdList.pop()
-                    self.listbox.delete(self.rect_num-2)
+                    self.listbox.delete(END)
                 self.rect_num -= 1
             else:
                 self.isCrop = False
