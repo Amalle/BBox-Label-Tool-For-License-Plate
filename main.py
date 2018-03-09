@@ -92,7 +92,7 @@ class LabelTool():
         # Plate number
         self.plate = xp.Plate()
         self.plate_cache = []  #存放最近标记过的车牌号码（最多5个，不重复）
-        self.cacheIdx = 0  # plate cache index
+        self.cacheIdx = -1  # plate cache index
 
         # Plate color
         self.plate_color = ''
@@ -265,8 +265,10 @@ class LabelTool():
     def loadDir(self):
         if not self.isloadconfsuccess:
             # chose image dir 
-            self.imageDir = askdirectory()
-            self.writeConf()
+            file_dir = askdirectory()
+            if not '' == file_dir:
+                self.imageDir = file_dir
+                self.writeConf()
         else:
             self.isloadconfsuccess = False
         self.et.set(self.imageDir)
@@ -317,7 +319,7 @@ class LabelTool():
         self.progLabel.config(text=" %s: %d/%d" %(self.la.index, self.cur, self.total))
 
         # load labels
-        self.imagename = os.path.split(imagepath)[-1].split('.')[0]
+        self.imagename = cn.getFileNameFromPath(imagepath)
         labelname = self.imagename + '.xml'
         self.labelfilename = os.path.join(self.outDir, labelname)
         bbox_cnt = 0
@@ -694,9 +696,9 @@ class LabelTool():
             return
         self.pnumber_entry.delete(0,END)
         self.pnumber_entry.insert(0,self.plate_cache[self.cacheIdx])
-        self.cacheIdx += 1
-        if self.cacheIdx > len(self.plate_cache) - 1:
-            self.cacheIdx = 0
+        self.cacheIdx -= 1
+        if self.cacheIdx < -len(self.plate_cache):
+            self.cacheIdx = -1
 
 ##    def setImage(self, imagepath = r'test2.png'):
 ##        self.img = Image.open(imagepath)

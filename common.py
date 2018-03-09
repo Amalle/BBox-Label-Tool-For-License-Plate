@@ -20,3 +20,10 @@ def checkbox(box, w, h):
         ismodify = True
 
     return ismodify,[x_left,y_top,x_right,y_bottom]
+
+def getFileNameFromPath(file_path):
+    filename = os.path.split(file_path)[-1]
+    img_type = filename.split('.')[-1]
+    type_len = len(img_type)+1
+    filename = filename[0:-type_len]
+    return filename
