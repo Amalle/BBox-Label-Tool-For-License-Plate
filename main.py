@@ -471,7 +471,7 @@ class LabelTool():
             if os.path.exists(self.labelfilename):
                 os.remove(self.labelfilename)
 
-        self.entry.delete(0,END)
+        self.pnumber_entry.delete(0,END)
         self.isCrop = False
         print('Image No. %d saved' %(self.cur))
         self.loadImage()
