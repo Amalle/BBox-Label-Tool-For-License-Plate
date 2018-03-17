@@ -39,13 +39,14 @@ class Plate:
                 cr = obj.find("color")
                 if None != cr:
                     color = cr.text
-                bndbox = obj.find("bndbox")
-                if None != bndbox:
-                    xmin = int(bndbox.find("xmin").text)
-                    ymin = int(bndbox.find("ymin").text)
-                    xmax = int(bndbox.find("xmax").text)
-                    ymax = int(bndbox.find("ymax").text)
-                    pbox = [xmin,ymin,xmax,ymax]
+                vertexs = obj.find("vertexs")
+                if None != vertexs:
+                    vertex = vertexs.find('vertex')
+                    if None != vertex:
+                        for ver in vertexs.iter('vertex'):
+                            x = int(ver.find('x').text)
+                            y = int(ver.find('y').text)
+                            pbox.append([x,y])
                 characters = obj.find('characters')
                 if None != characters:
                     char = characters.find('char')
@@ -53,16 +54,15 @@ class Plate:
                         for char in characters.iter('char'):
                             c = char.find('data').text
                             chars.append(c)
-                            bndbox = char.find('bndbox')
-                            cbox = []
-                            if None != bndbox:
-                                xmin = int(bndbox.find("xmin").text)
-                                ymin = int(bndbox.find("ymin").text)
-                                xmax = int(bndbox.find("xmax").text)
-                                ymax = int(bndbox.find("ymax").text)
-                                cbox = [xmin,ymin,xmax,ymax]
-                                cboxes.append(cbox)
+                            vertex = char.find('vertex')
+                            if None != vertex:
+                                cbox = []
+                                for ver in char.iter('vertex'):
+                                    x = int(ver.find('x').text)
+                                    y = int(ver.find('y').text)
+                                    cbox.append([x,y])
                                 char_num += 1
+                                cboxes.append(cbox)
                 plate = [char_num,chars,pbox,cboxes,color]
                 self.plateLists.append(plate)
                     
@@ -101,14 +101,20 @@ class Plate:
                 E1.truncated(''),
                 E1.difficult(''),
                 E1.remark(''),
-                E1.color(color),
-                E1.bndbox(
-                    E1.xmin(pbox[0]),
-                    E1.ymin(pbox[1]),
-                    E1.xmax(pbox[2]),
-                    E1.ymax(pbox[3])
-                )
+                E1.color(color)
             )
+
+            E5 = objectify.ElementMaker(annotate=False)
+            anno_tree5 = E5.vertexs()
+
+            for i in range(0,4):
+                E6 = objectify.ElementMaker(annotate=False)
+                anno_tree6 = E6.vertex(
+                    E6.x(pbox[i][0]),
+                    E6.y(pbox[i][1])
+                )
+                anno_tree5.append(anno_tree6)
+            anno_tree1.append(anno_tree5)
 
             E4 = objectify.ElementMaker(annotate=False)
             anno_tree4 = E4.characters()
@@ -118,13 +124,14 @@ class Plate:
                 E2 = objectify.ElementMaker(annotate=False)
                 anno_tree2 = E2.char(
                     E2.data(chars[i].upper()),
-                    E2.bndbox(
-                        E2.xmin(cbox[0]),
-                        E2.ymin(cbox[1]),
-                        E2.xmax(cbox[2]),
-                        E2.ymax(cbox[3])
-                    )
                 )
+                for j in range(0,4):
+                    E7 = objectify.ElementMaker(annotate=False)
+                    anno_tree7 = E7.vertex(
+                        E7.x(cboxes[i][j][0]),
+                        E7.y(cboxes[i][j][1])
+                    )
+                    anno_tree2.append(anno_tree7)
                 anno_tree4.append(anno_tree2)
             anno_tree1.append(anno_tree4)
             anno_tree3.append(anno_tree1)

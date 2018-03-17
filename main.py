@@ -1,6 +1,6 @@
 #-------------------------------------------------------------------------------
 # Name:        Object bounding box label tool
-# Purpose:     Label Plate box
+# Purpose:     Label Licence Plate
 # Author:      mq
 # Created:     12/27/2017
 #
@@ -16,17 +16,22 @@ import random
 import xml_parser as xp
 import common as cn
 import Language as la
+from win32api import GetSystemMetrics
 
 # colors for the bboxes
 COLORS = ['red', 'blue', 'PaleVioletRed', 
           'DeepPink', 'Plum', 'Brown', 'Thistle', 'Orchid']
 PLATE_COLOR = ["白底黑字","白底红字","红底白字","绿底白字","白底绿字","黄底黑字","蓝底白字"]
 # image sizes for the examples
-WIDTH = 1600
-HEIGHT = 900
+# WIDTH = 1000
+# HEIGHT = 600
 
 class LabelTool():
     def __init__(self, master):
+        # get display resolution
+        WIDTH = GetSystemMetrics(0)
+        HEIGHT = GetSystemMetrics(1)
+
         # set up the main frame
         self.parent = master
         self.parent.title("LabelTool")
@@ -38,8 +43,11 @@ class LabelTool():
         self.config_file = './config.ini'
         self.isloadconfsuccess = False
         # get image dir from saved text file
-        self.convas_w = WIDTH    #画布宽
-        self.convas_h = HEIGHT    #画布高
+        scale = 3/4
+        if WIDTH > 1280:
+            scale = 4/5
+        self.convas_w = int(WIDTH*scale)    #画布宽
+        self.convas_h = int(HEIGHT*scale)    #画布高
         self.imageDir = ''
         self.loadConf()
 
@@ -81,13 +89,22 @@ class LabelTool():
         self.STATE['click'] = 0
         self.STATE['x'], self.STATE['y'] = 0, 0
 
+        # four vertex
+        self.click_num = 0
+        self.vertex = [[0,0],[0,0],[0,0],[0,0]]
+
         # reference to bbox
         self.bboxIdList = []
+        self.lineIdList = []
         self.cboxIdList = []
+        self.cboxIds = []
         self.bboxId = None
         self.bboxList = []
         self.hl = None
         self.vl = None
+        self.mlineId = None
+        self.lineId = None
+        self.selectBoxId = None
 
         # Plate number
         self.plate = xp.Plate()
@@ -118,8 +135,9 @@ class LabelTool():
         self.mainPanel = Canvas(self.frame, cursor='tcross')
         self.mainPanel.bind("<Button-1>", self.mouseClick)
         self.mainPanel.bind("<ButtonRelease-1>", self.mouseClickUp)
-        self.mainPanel.bind("<Button-3>", self.cancelBBox)
+        self.mainPanel.bind("<Button-3>", self.cancelOperation)
         self.mainPanel.bind("<Motion>", self.mouseMove)
+        self.mainPanel.bind("<B1-Motion>", self.mouseSelectCropBox)
         self.parent.bind("<F2>", self.saveImage)
         self.parent.bind("<F1>", self.prevImage) # press 'a' to go backforward
         self.parent.bind("<F3>", self.nextImage) # press 'd' to go forward
@@ -148,7 +166,7 @@ class LabelTool():
 
         self.lb1 = Label(self.rightPanel, text=self.la.label_list)
         self.lb1.pack(side=TOP, expand=YES, fill=X)
-        self.listbox = Listbox(self.rightPanel, width=30, height=20)
+        self.listbox = Listbox(self.rightPanel, width=25, height=15)
         self.listbox.bind("<ButtonRelease-1>", self.selectPlateList)
         self.listbox.pack(side=TOP, expand=YES, fill=X)
         self.btnDel = Button(self.rightPanel, text=self.la.clear, command=self.delBBox)
@@ -192,10 +210,6 @@ class LabelTool():
         self.frame.columnconfigure(1, weight=1)
         self.frame.rowconfigure(4, weight=1)
 
-        # for debugging
-##        self.setImage()
-##        self.loadDir()
-
         if self.isloadconfsuccess:
             self.loadDir()
 
@@ -232,16 +246,16 @@ class LabelTool():
                     if 0 != len(conf_value):
                         self.imageDir = conf_value
                         self.isloadconfsuccess = True
-                if 'convas_w' == conf_name:
-                    if 0 != len(conf_value):
-                        self.convas_w = int(conf_value)
-                    else:
-                        self.convas_w = WIDTH
-                if 'convas_h' == conf_name:
-                    if 0 != len(conf_value):
-                        self.convas_h = int(conf_value)
-                    else:
-                        self.convas_h = HEIGHT
+                # if 'convas_w' == conf_name:
+                #     if 0 != len(conf_value):
+                #         self.convas_w = int(conf_value)
+                #     else:
+                #         self.convas_w = WIDTH
+                # if 'convas_h' == conf_name:
+                #     if 0 != len(conf_value):
+                #         self.convas_h = int(conf_value)
+                #     else:
+                #         self.convas_h = HEIGHT
                 # if 'language' == conf_name:
                 #     if 0 != len(conf_value):
                 #         self.language = conf_value
@@ -255,10 +269,10 @@ class LabelTool():
         f = open(file_dir,"w")
         txt_dir = 'image Dir: %s\n' % (self.imageDir)
         f.write(txt_dir)
-        txt_w = 'convas_w: %d\n' % (self.convas_w)
-        f.write(txt_w)
-        txt_h = 'convas_h: %d' % (self.convas_h)
-        f.write(txt_h)
+        # txt_w = 'convas_w: %d\n' % (self.convas_w)
+        # f.write(txt_w)
+        # txt_h = 'convas_h: %d' % (self.convas_h)
+        # f.write(txt_h)
         # txt_la = 'language: %s' % (self.language)
         # f.write(txt_la)
 
@@ -332,29 +346,54 @@ class LabelTool():
         self.clearBBox()
         plate_lists = self.plate.plateLists
         p_num = 0
+
+        #enlarge selected plate area
         if self.isCrop:
             if self.isEnlarge: 
                 idx = self.selectedListboxId
                 chars = plate_lists[idx][1]
                 pbox = plate_lists[idx][2]
                 cboxes = plate_lists[idx][3]
-                x1 = int((pbox[0] - self.crop_box[0])/(self.scale_x*self.crop_rate_x))
-                y1 = int((pbox[1] - self.crop_box[1])/(self.scale_y*self.crop_rate_y))
-                x2 = int((pbox[2] - self.crop_box[0])/(self.scale_x*self.crop_rate_x))
-                y2 = int((pbox[3] - self.crop_box[1])/(self.scale_y*self.crop_rate_y))
+
+                # show plate box
                 color = COLORS[p_num+1 % len(COLORS)]
-                tmpId = self.mainPanel.create_rectangle(x1, y1, x2, y2, width=2, outline=color)
-                self.bboxIdList.append(tmpId)
-                self.listbox.insert(END, '%s (%d, %d)->(%d, %d)' %("".join(chars), x1, y1, x2, y2))
+                boxId = []
+                x0,y0 = 0,0
+                for i in range(0,len(pbox)-1):
+                    x1 = int((pbox[i][0] - self.crop_box[0])/(self.scale_x*self.crop_rate_x))
+                    y1 = int((pbox[i][1] - self.crop_box[1])/(self.scale_y*self.crop_rate_y))
+                    x2 = int((pbox[i+1][0] - self.crop_box[0])/(self.scale_x*self.crop_rate_x))
+                    y2 = int((pbox[i+1][1] - self.crop_box[1])/(self.scale_y*self.crop_rate_y))
+                    tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=2, fill=color)
+                    boxId.append(tmpId)
+                x1 = int((pbox[-1][0] - self.crop_box[0])/(self.scale_x*self.crop_rate_x))
+                y1 = int((pbox[-1][1] - self.crop_box[1])/(self.scale_y*self.crop_rate_y))
+                x2 = int((pbox[0][0] - self.crop_box[0])/(self.scale_x*self.crop_rate_x))
+                y2 = int((pbox[0][1] - self.crop_box[1])/(self.scale_y*self.crop_rate_y))
+                tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=2, fill=color)
+                boxId.append(tmpId)
+                self.bboxIdList.append(boxId)
+                self.listbox.insert(END, '%s (%d, %d)' %("".join(chars), pbox[0][0], pbox[0][1]))
                 self.listbox.itemconfig(p_num, fg=color)
+
+                # show char box
                 cboxId = []
                 for cbox in cboxes:
-                    x1 = int((cbox[0] - self.crop_box[0])/(self.scale_x*self.crop_rate_x))
-                    y1 = int((cbox[1] - self.crop_box[1])/(self.scale_y*self.crop_rate_y))
-                    x2 = int((cbox[2] - self.crop_box[0])/(self.scale_x*self.crop_rate_x))
-                    y2 = int((cbox[3] - self.crop_box[1])/(self.scale_y*self.crop_rate_y))
-                    tmpId = self.mainPanel.create_rectangle(x1, y1, x2, y2, width=1, outline=color)
-                    cboxId.append(tmpId)
+                    boxId = []
+                    for i in range(0,len(cbox)-1):
+                        x1 = int((cbox[i][0] - self.crop_box[0])/(self.scale_x*self.crop_rate_x))
+                        y1 = int((cbox[i][1] - self.crop_box[1])/(self.scale_y*self.crop_rate_y))
+                        x2 = int((cbox[i+1][0] - self.crop_box[0])/(self.scale_x*self.crop_rate_x))
+                        y2 = int((cbox[i+1][1] - self.crop_box[1])/(self.scale_y*self.crop_rate_y))
+                        tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=1, fill=color)
+                        boxId.append(tmpId)
+                    x1 = int((cbox[-1][0] - self.crop_box[0])/(self.scale_x*self.crop_rate_x))
+                    y1 = int((cbox[-1][1] - self.crop_box[1])/(self.scale_y*self.crop_rate_y))
+                    x2 = int((cbox[0][0] - self.crop_box[0])/(self.scale_x*self.crop_rate_x))
+                    y2 = int((cbox[0][1] - self.crop_box[1])/(self.scale_y*self.crop_rate_y))
+                    tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=1, fill=color)
+                    boxId.append(tmpId)
+                    cboxId.append(boxId)
                 self.cboxIdList.append(cboxId)
         else:
             for plate in plate_lists:
@@ -362,23 +401,46 @@ class LabelTool():
                 chars = plate[1]
                 pbox = plate[2]
                 cboxes = plate[3]
-                x1 = int(pbox[0]/self.scale_x)
-                y1 = int(pbox[1]/self.scale_y)
-                x2 = int(pbox[2]/self.scale_x)
-                y2 = int(pbox[3]/self.scale_y)
+
+                # show plate box
                 color = COLORS[p_num+1 % len(COLORS)]
-                tmpId = self.mainPanel.create_rectangle(x1, y1, x2, y2, width=2, outline=color)
-                self.bboxIdList.append(tmpId)
-                self.listbox.insert(END, '%s (%d, %d)->(%d, %d)' %("".join(chars), x1, y1, x2, y2))
+                boxId = []
+                x0,y0 = 0,0
+                for i in range(0,len(pbox)-1):
+                    x1 = int(pbox[i][0]/self.scale_x)
+                    y1 = int(pbox[i][1]/self.scale_y)
+                    x2 = int(pbox[i+1][0]/self.scale_x)
+                    y2 = int(pbox[i+1][1]/self.scale_y)
+                    tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=2, fill=color)
+                    boxId.append(tmpId)
+                x1 = int(pbox[-1][0]/self.scale_x)
+                y1 = int(pbox[-1][1]/self.scale_y)
+                x2 = int(pbox[0][0]/self.scale_x)
+                y2 = int(pbox[0][1]/self.scale_y)
+                tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=2, fill=color)
+                boxId.append(tmpId)
+                self.bboxIdList.append(boxId)
+                self.listbox.insert(END, '%s (%d, %d)' %("".join(chars), pbox[0][0], pbox[0][1]))
                 self.listbox.itemconfig(p_num, fg=color)
+
+                # show char box
                 cboxId = []
                 for cbox in cboxes:
-                    x1 = int(cbox[0]/self.scale_x)
-                    y1 = int(cbox[1]/self.scale_y)
-                    x2 = int(cbox[2]/self.scale_x)
-                    y2 = int(cbox[3]/self.scale_y)
-                    tmpId = self.mainPanel.create_rectangle(x1, y1, x2, y2, width=1, outline=color)
-                    cboxId.append(tmpId)
+                    boxId = []
+                    for i in range(0,len(cbox)-1):
+                        x1 = int(cbox[i][0]/self.scale_x)
+                        y1 = int(cbox[i][1]/self.scale_y)
+                        x2 = int(cbox[i+1][0]/self.scale_x)
+                        y2 = int(cbox[i+1][1]/self.scale_y)
+                        tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=1, fill=color)
+                        boxId.append(tmpId)
+                    x1 = int(cbox[-1][0]/self.scale_x)
+                    y1 = int(cbox[-1][1]/self.scale_y)
+                    x2 = int(cbox[0][0]/self.scale_x)
+                    y2 = int(cbox[0][1]/self.scale_y)
+                    tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=1, fill=color)
+                    boxId.append(tmpId)
+                    cboxId.append(boxId)
                 self.cboxIdList.append(cboxId)
                 p_num += 1
 
@@ -389,14 +451,23 @@ class LabelTool():
                 return
             idx = int(sel[0])
             self.selectedListboxId = idx
-            x1 = self.plate.plateLists[idx][2][0]
-            y1 = self.plate.plateLists[idx][2][1]
-            x2 = self.plate.plateLists[idx][2][2]
-            y2 = self.plate.plateLists[idx][2][3]
+            x1 = self.plate.plateLists[idx][2][0][0]
+            y1 = self.plate.plateLists[idx][2][0][1]
+            x2 = self.plate.plateLists[idx][2][1][0]
+            y2 = self.plate.plateLists[idx][2][1][1]
+            x3 = self.plate.plateLists[idx][2][2][0]
+            y3 = self.plate.plateLists[idx][2][2][1]
+            x4 = self.plate.plateLists[idx][2][3][0]
+            y4 = self.plate.plateLists[idx][2][3][1]
+
+            xmin = min(x1,x2,x3,x4)
+            ymin = min(y1,y2,y3,y4)
+            xmax = max(x1,x2,x3,x4)
+            ymax = max(y1,y2,y3,y4)
 
             self.isCrop = True
             self.isEnlarge = True
-            self.crop_box = (x1-20,y1-20,x2+20,y2+20)
+            self.crop_box = (xmin-20,ymin-20,xmax+20,ymax+20)
             box_w = self.crop_box[2] - self.crop_box[0]
             box_h = self.crop_box[3] - self.crop_box[1]
             self.crop_rate_x = float(box_w/self.scale_x)/self.scale_W
@@ -404,7 +475,7 @@ class LabelTool():
             f,box = cn.checkbox(self.crop_box, self.img.width, self.img.height)
             if f:
                 self.crop_box = box
-            self.STATE['click'] = 0
+            self.click_num = 0
         else:
             self.isEnlarge = False
             self.isCrop = False
@@ -479,53 +550,75 @@ class LabelTool():
     def mouseClick(self, event):
         if 0 == self.cur:
             return
-        box = []
+        self.click_num += 1
         iscboxout = False
-        if self.STATE['click'] == 0:
-            self.STATE['x'], self.STATE['y'] = event.x, event.y
-            self.pnumber_entry.delete(0,END)
-            self.pcolor_list.current(0)
-        else:
-            x1, x2 = min(self.STATE['x'], event.x), max(self.STATE['x'], event.x)
-            y1, y2 = min(self.STATE['y'], event.y), max(self.STATE['y'], event.y)
-            if self.isCrop:
-                x1 = self.crop_box[0] + x1*self.crop_rate_x*self.scale_x
-                x2 = self.crop_box[0] + x2*self.crop_rate_x*self.scale_x
-                y1 = self.crop_box[1] + y1*self.crop_rate_y*self.scale_y
-                y2 = self.crop_box[1] + y2*self.crop_rate_y*self.scale_y
-            else:
-                x1 = x1*self.scale_x
-                x2 = x2*self.scale_x
-                y1 = y1*self.scale_y
-                y2 = y2*self.scale_y
-            box = [int(x1), int(y1), int(x2), int(y2)]
+
+        x1, y1 = event.x, event.y
+        self.vertex[self.click_num-1] = [x1,y1]
+        self.pnumber_entry.delete(0,END)
+        self.pcolor_list.current(0)
+        if self.click_num > 1:
+            self.lineId = self.mainPanel.create_line(self.vertex[self.click_num-1][0], \
+                                       self.vertex[self.click_num-1][1], \
+                                       self.vertex[self.click_num-2][0], \
+                                       self.vertex[self.click_num-2][1], \
+                                       width=2, fill='red')
+            self.lineIdList.append(self.lineId)
+            if self.click_num > 3:
+                self.lineId = self.mainPanel.create_line(self.vertex[self.click_num-1][0], \
+                                                         self.vertex[self.click_num-1][1], \
+                                                         self.vertex[0][0], self.vertex[0][1], \
+                                                         event.x, event.y, width=2, \
+                                                         fill='red')
+                self.lineIdList.append(self.lineId)
+            if self.mlineId:
+                self.mainPanel.delete(self.mlineId)
+        if self.click_num > 3:
             if 0 == self.rect_num:
-                self.bboxIdList.append(self.bboxId)
+                self.bboxIdList.append(self.lineIdList)
             elif self.rect_max > self.rect_num:
-                self.cboxIdList.append(self.bboxId)
+                self.cboxIds.append(self.lineIdList)
             else:
-                self.mainPanel.delete(self.bboxId)
+                for line_id in self.lineIdList:
+                    self.mainPanel.delete(line_id)
                 self.rect_num -= 1
                 iscboxout = True
-            self.bboxId = None
+            self.lineId = None
             self.rect_num += 1
-        self.STATE['click'] = 1 - self.STATE['click']
+            self.click_num = 0
+            self.lineIdList = []
+
+            # convert location scale
+            for i in range(0,len(self.vertex)):
+                if self.isCrop:
+                    self.vertex[i][0] = int(self.crop_box[0] + \
+                                        self.vertex[i][0]*self.crop_rate_x*self.scale_x)
+                    self.vertex[i][1] = int(self.crop_box[1] + \
+                                        self.vertex[i][1]*self.crop_rate_y*self.scale_y)
+                else:
+                    self.vertex[i][0] = int(self.vertex[i][0]*self.scale_x)
+                    self.vertex[i][1] = int(self.vertex[i][1]*self.scale_y)
+
+            #save box
+            if 1 == self.rect_num:
+                self.plate.pbox = self.vertex
+                self.listbox.insert(END, '(%d,%d)' %(self.vertex[0][0], self.vertex[0][1]))
+                self.listbox.itemconfig(len(self.bboxIdList) - 1, fg='red')
+            elif 1 < self.rect_num and self.rect_num <= self.rect_max:
+                self.plate.cboxes.append(self.vertex)
+                self.cboxIdList.append(self.cboxIds)
+                self.cboxIds = []
+            self.vertex = [[0,0],[0,0],[0,0],[0,0]]
+
         if iscboxout:
             return
-        if 1 == self.rect_num and 0 == self.STATE['click']:
-            self.plate.pbox = box
-            self.listbox.insert(END, '(%d,%d)->(%d,%d)' %(box[0], box[1], box[2], box[3]))
-            self.listbox.itemconfig(len(self.bboxIdList) - 1, fg='red')
-        elif 1 < self.rect_num and self.rect_num <= self.rect_max:
-            if 0 == self.STATE['click']:
-                self.plate.cboxes.append(box)
 
     def mouseClickUp(self, event):
         if self.isCrop or self.rect_num != 0:
             return
-        if 1 == self.STATE['click']:
-            x1, x2 = min(self.STATE['x'], event.x), max(self.STATE['x'], event.x)
-            y1, y2 = min(self.STATE['y'], event.y), max(self.STATE['y'], event.y)
+        if 1 == self.click_num:
+            x1, x2 = min(self.vertex[0][0], event.x), max(self.vertex[0][0], event.x)
+            y1, y2 = min(self.vertex[0][1], event.y), max(self.vertex[0][1], event.y)
             box_w = x2 - x1
             box_h = y2 - y1
             if box_w > 20 and box_h > 20:
@@ -534,65 +627,80 @@ class LabelTool():
                 self.crop_rate_y = float(box_h)/self.scale_H
                 self.crop_box = (int(x1*self.scale_x),int(y1*self.scale_y),
                                  int(x2*self.scale_x),int(y2*self.scale_y))
-                self.STATE['click'] = 0
+                self.click_num = 0
                 self.loadImage()
 
     def mouseMove(self, event):
         self.disp.config(text='x: %d, y: %d' %(event.x, event.y))
-        if self.tkimg:
-            if self.hl:
-                self.mainPanel.delete(self.hl)
-            self.hl = self.mainPanel.create_line(0, event.y, self.tkimg.width(), event.y, width=2, fill='red')
-            if self.vl:
-                self.mainPanel.delete(self.vl)
-            self.vl = self.mainPanel.create_line(event.x, 0, event.x, self.tkimg.height(), width=2, fill='red')
-        if 1 == self.STATE['click']:
-            if self.bboxId:
-                self.mainPanel.delete(self.bboxId)
-            self.bboxId = self.mainPanel.create_rectangle(self.STATE['x'], self.STATE['y'], \
-                                                        event.x, event.y, width=2, \
-                                                        outline='red')
+        if 0 < self.click_num and self.click_num < 4:
+            if self.mlineId:
+                self.mainPanel.delete(self.mlineId)
+            self.mlineId = self.mainPanel.create_line(self.vertex[self.click_num-1][0], \
+                                       self.vertex[self.click_num-1][1], \
+                                       event.x, event.y, width=2, \
+                                       fill='red')
+    
+    def mouseSelectCropBox(self, event):
+        if 1 == self.click_num and 0 == self.rect_num:
+            if self.selectBoxId:
+                self.mainPanel.delete(self.selectBoxId)
+            self.selectBoxId = self.mainPanel.create_rectangle(self.vertex[self.click_num-1][0], \
+                                       self.vertex[self.click_num-1][1], \
+                                       event.x, event.y, width=2, \
+                                       outline='red')
 
-    def cancelBBox(self, event):
-        if 1 == self.STATE['click']:
-            if self.bboxId:
-                self.mainPanel.delete(self.bboxId)
-                self.bboxId = None
-                self.STATE['click'] = 0
-        elif 0 == self.STATE['click']:
+    def cancelOperation(self, event):
+        if 4 > self.click_num and self.click_num > 1:
+            line_id = self.lineIdList[-1]
+            self.mainPanel.delete(line_id)
+            self.click_num -= 1
+            self.lineIdList.pop()
+        elif 1 == self.click_num:
+            self.click_num -= 1
+            if self.mlineId:
+                self.mainPanel.delete(self.mlineId)
+        elif 0 == self.click_num:
             if self.rect_num > 0:
                 if self.rect_num > 1:
                     self.plate.cboxes.pop()
-                    self.mainPanel.delete(self.cboxIdList[len(self.cboxIdList)-1])
+                    for line_id in self.cboxIdList[-1]:
+                        self.mainPanel.delete(line_id)
                     self.cboxIdList.pop()
                 else:
                     self.plate.pbox = []
-                    self.mainPanel.delete(self.bboxIdList[len(self.bboxIdList)-1])
+                    for line_id in self.bboxIdList[-1]:
+                        self.mainPanel.delete(line_id)
                     self.bboxIdList.pop()
                     self.listbox.delete(END)
                 self.rect_num -= 1
             else:
                 self.isCrop = False
                 self.loadImage()
+    
+        # fresh moveing line
+        if 0 < self.click_num and self.click_num < 4:
+            if self.mlineId:
+                self.mainPanel.delete(self.mlineId)
+            self.mlineId = self.mainPanel.create_line(self.vertex[self.click_num-1][0], \
+                                       self.vertex[self.click_num-1][1], \
+                                       event.x, event.y, width=2, \
+                                       fill='red')
 
     def delBBox(self):
         sel = self.listbox.curselection()
         if len(sel) != 1 :
             return
         idx = int(sel[0])
-        self.mainPanel.delete(self.bboxIdList[idx])
+        for line_id in self.bboxIdList[idx]:
+            self.mainPanel.delete(line_id)
         self.bboxIdList.pop(idx)
         for cboxId in self.cboxIdList[idx]:
-            self.mainPanel.delete(cboxId)
+            for line_id in cboxId:
+                self.mainPanel.delete(line_id)
         self.cboxIdList.pop(idx)
         self.listbox.delete(idx)
 
         self.plate.plateLists.pop(idx)
-        #self.showLabel()
-        # self.mainPanel.delete(self.bboxIdList[idx])
-        # self.bboxIdList.pop(idx)
-        # self.bboxList.pop(idx)
-        # self.listbox.delete(idx)
         self.clear = True
 
     def clearAll(self):
@@ -602,6 +710,17 @@ class LabelTool():
                 self.mainPanel.delete(self.cboxIdList[idx][cdx])
         self.clearBBox()
         self.clear = True
+
+    def clearBBox(self):
+        self.listbox.delete(0, len(self.bboxIdList))
+        for idx in range(len(self.bboxIdList)):
+            for line_id in self.bboxIdList[idx]:
+                self.mainPanel.delete(line_id)
+            for cboxId in self.cboxIdList[idx]:
+                for line_id in cboxId:
+                    self.mainPanel.delete(line_id)
+        self.bboxIdList = []
+        self.cboxIdList = []
 
     def deleteImage(self):
         df = False
@@ -621,13 +740,6 @@ class LabelTool():
             if self.cur < 0:
                 self.cur += 1
             self.loadImage()
-
-    def clearBBox(self):
-        self.listbox.delete(0, len(self.bboxIdList))
-        for idx in range(len(self.bboxIdList)):
-            self.mainPanel.delete(self.bboxIdList[idx])
-        self.bboxIdList = []
-        self.cboxIdList = []
 
     def clearLabelingBox(self):
         self.plate.pbox = []
