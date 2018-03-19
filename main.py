@@ -356,7 +356,7 @@ class LabelTool():
                 cboxes = plate_lists[idx][3]
 
                 # show plate box
-                color = COLORS[p_num+1 % len(COLORS)]
+                color = 'red'
                 boxId = []
                 x0,y0 = 0,0
                 for i in range(0,len(pbox)-1):
@@ -576,6 +576,7 @@ class LabelTool():
         if self.click_num > 3:
             if 0 == self.rect_num:
                 self.bboxIdList.append(self.lineIdList)
+                self.cboxIds = []
             elif self.rect_max > self.rect_num:
                 self.cboxIds.append(self.lineIdList)
             else:
@@ -606,8 +607,6 @@ class LabelTool():
                 self.listbox.itemconfig(len(self.bboxIdList) - 1, fg='red')
             elif 1 < self.rect_num and self.rect_num <= self.rect_max:
                 self.plate.cboxes.append(self.vertex)
-                self.cboxIdList.append(self.cboxIds)
-                self.cboxIds = []
             self.vertex = [[0,0],[0,0],[0,0],[0,0]]
 
         if iscboxout:
@@ -663,9 +662,9 @@ class LabelTool():
             if self.rect_num > 0:
                 if self.rect_num > 1:
                     self.plate.cboxes.pop()
-                    for line_id in self.cboxIdList[-1]:
+                    for line_id in self.cboxIds[-1]:
                         self.mainPanel.delete(line_id)
-                    self.cboxIdList.pop()
+                    self.cboxIds.pop()
                 else:
                     self.plate.pbox = []
                     for line_id in self.bboxIdList[-1]:
@@ -694,8 +693,8 @@ class LabelTool():
         for line_id in self.bboxIdList[idx]:
             self.mainPanel.delete(line_id)
         self.bboxIdList.pop(idx)
-        for cboxId in self.cboxIdList[idx]:
-            for line_id in cboxId:
+        for cboxIds in self.cboxIdList[idx]:
+            for line_id in cboxIds:
                 self.mainPanel.delete(line_id)
         self.cboxIdList.pop(idx)
         self.listbox.delete(idx)
@@ -705,18 +704,16 @@ class LabelTool():
 
     def clearAll(self):
         self.plate.plateLists = []
-        for idx in range(len(self.bboxIdList)):
-            for cdx in range(len(self.cboxIdList[idx])):
-                self.mainPanel.delete(self.cboxIdList[idx][cdx])
         self.clearBBox()
         self.clear = True
 
     def clearBBox(self):
         self.listbox.delete(0, len(self.bboxIdList))
-        for idx in range(len(self.bboxIdList)):
-            for line_id in self.bboxIdList[idx]:
+        for bboxIds in self.bboxIdList:
+            for line_id in bboxIds:
                 self.mainPanel.delete(line_id)
-            for cboxId in self.cboxIdList[idx]:
+        for cboxIds in self.cboxIdList: 
+            for cboxId in cboxIds:
                 for line_id in cboxId:
                     self.mainPanel.delete(line_id)
         self.bboxIdList = []
@@ -791,8 +788,16 @@ class LabelTool():
     def eraseBlock(self, event=None):
         if self.isCrop:
             return
-        if 1 == self.rect_num and 0 == self.STATE['click']:
-            box = (self.plate.pbox[0], self.plate.pbox[1], self.plate.pbox[2], self.plate.pbox[3])
+        if 1 == self.rect_num:
+            x1 = min(self.plate.pbox[0][0], self.plate.pbox[1][0], \
+                     self.plate.pbox[2][0], self.plate.pbox[3][0])
+            y1 = min(self.plate.pbox[0][1], self.plate.pbox[1][1], \
+                     self.plate.pbox[2][1], self.plate.pbox[3][1])   
+            x2 = max(self.plate.pbox[0][0], self.plate.pbox[1][0], \
+                     self.plate.pbox[2][0], self.plate.pbox[3][0])
+            y2 = max(self.plate.pbox[0][1], self.plate.pbox[1][1], \
+                     self.plate.pbox[2][1], self.plate.pbox[3][1])   
+            box = (x1, y1, x2, y2)
             bw = box[2] - box[0]
             bh = box[3] - box[1]
             img_block = Image.new("RGB",(bw,bh),(0,0,0))
