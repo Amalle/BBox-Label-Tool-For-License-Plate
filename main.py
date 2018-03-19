@@ -344,16 +344,32 @@ class LabelTool():
             
     def showLabel(self):
         self.clearBBox()
-        plate_lists = self.plate.plateLists
+
+        # check plate 
+        i = 0
+        while(i < len(self.plate.plateLists)):
+            pf = True
+            if 0 == len(self.plate.plateLists[i]):
+                pf = False
+                break
+            for p in self.plate.plateLists[i]:
+                if [] == p:
+                    pf = False
+                    break
+            if not pf:
+                self.plate.plateLists.pop(i)
+                i -= 1
+            i += 1
+
         p_num = 0
 
         #enlarge selected plate area
         if self.isCrop:
             if self.isEnlarge: 
                 idx = self.selectedListboxId
-                chars = plate_lists[idx][1]
-                pbox = plate_lists[idx][2]
-                cboxes = plate_lists[idx][3]
+                chars = self.plate.plateLists[idx][1]
+                pbox = self.plate.plateLists[idx][2]
+                cboxes = self.plate.plateLists[idx][3]
 
                 # show plate box
                 color = 'red'
@@ -396,7 +412,7 @@ class LabelTool():
                     cboxId.append(boxId)
                 self.cboxIdList.append(cboxId)
         else:
-            for plate in plate_lists:
+            for plate in self.plate.plateLists:
                 char_num = plate[0]
                 chars = plate[1]
                 pbox = plate[2]
