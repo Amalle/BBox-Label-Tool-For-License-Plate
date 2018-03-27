@@ -3,6 +3,6 @@
 
 # Environment
 - python3
-- python PIL (Pillow)
+- Pillow
 - lxml
 - tkinter
