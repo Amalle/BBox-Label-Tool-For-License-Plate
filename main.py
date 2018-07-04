@@ -18,13 +18,10 @@ import common as cn
 import Language as la
 from win32api import GetSystemMetrics
 
-# colors for the bboxes
-COLORS = ['red', 'blue', 'PaleVioletRed', 
-          'DeepPink', 'Plum', 'Brown', 'Thistle', 'Orchid']
-PLATE_COLOR = ["白底黑字","白底红字","红底白字","绿底白字","白底绿字","黄底黑字","蓝底白字"]
-# image sizes for the examples
-# WIDTH = 1000
-# HEIGHT = 600
+import cv2
+import numpy as np
+import plate_recog as pr
+from parameters import * 
 
 class LabelTool():
     def __init__(self, master):
@@ -58,9 +55,9 @@ class LabelTool():
         self.scale_H = self.convas_h
 
         # rect number
-        self.rect_num = 0  #rects of plate and charactors 6~8
+        self.rect_num = 0  #rects of plate and charactors 6~9
         self.rect_min = 6
-        self.rect_max = 8
+        self.rect_max = 9
 
         # crop image
         self.isCrop = False
@@ -82,6 +79,8 @@ class LabelTool():
         self.category = 0
         self.imagename = ''
         self.labelfilename = ''
+        self.img = None
+        self.img_src = None
         self.tkimg = None
 
         # initialize mouse state
@@ -111,7 +110,12 @@ class LabelTool():
         self.plate_cache = []  #存放最近标记过的车牌号码（最多5个，不重复）
         self.cacheIdx = -1  # plate cache index
 
+        # country/region
+        self.region_no = 0
+        self.plate_region = PLATE_REGION[self.region_no]
+
         # Plate color
+        self.PLATE_COLOR = PLATE_COLORS[0]
         self.plate_color = ''
 
         # Clear 
@@ -149,32 +153,44 @@ class LabelTool():
         # showing bbox info & delete bbox
         self.rightPanel = Frame(self.frame)
         self.rightPanel.grid(row=1, column=2, rowspan=6, columnspan=1, sticky=W+N)
+
+        self.pregion = Label(self.rightPanel, text=self.la.region)
+        self.pregion.pack(side=TOP, expand=YES, fill=X, pady=5)
+        e_region = StringVar() 
+        self.pregion_list = ttk.Combobox(self.rightPanel, textvariable=e_region, state='readonly')
+        self.pregion_list['values'] = tuple(PLATE_REGION)
+        self.pregion_list.current(0)
+        self.pregion_list.bind("<<ComboboxSelected>>", self.selectPlateRegion)
+        self.pregion_list.pack(side=TOP, expand=YES, fill=X)
+
         self.pnumber = Label(self.rightPanel, text=self.la.plate_number)
-        self.pnumber.pack(side=TOP, expand=YES, fill=X)
-        e = StringVar() 
-        self.pnumber_entry = Entry(self.rightPanel, textvariable=e)
+        self.pnumber.pack(side=TOP, expand=YES, fill=X, pady=5)
+        self.btn_plate_recog = Button(self.rightPanel, text=self.la.auto_plate_recog, command=self.plate_recognize)
+        self.btn_plate_recog.pack(side=TOP, expand=YES, fill=X)
+        e_number = StringVar() 
+        self.pnumber_entry = Entry(self.rightPanel, textvariable=e_number)
         self.pnumber_entry.pack(side=TOP, expand=YES, fill=X)
 
         self.pcolor = Label(self.rightPanel, text=self.la.plate_color)
-        self.pcolor.pack(side=TOP, expand=YES, fill=X)
-        color_value = StringVar() 
-        self.pcolor_list = ttk.Combobox(self.rightPanel, textvariable=color_value)
-        self.pcolor_list['values'] = tuple(PLATE_COLOR)
+        self.pcolor.pack(side=TOP, expand=YES, fill=X, pady=5)
+        color_value = StringVar()
+        self.pcolor_list = ttk.Combobox(self.rightPanel, textvariable=color_value, state='readonly')
+        self.pcolor_list['values'] = tuple(self.PLATE_COLOR)
         self.pcolor_list.current(0)
         self.pcolor_list.bind("<<ComboboxSelected>>", self.selectPlateColor)
         self.pcolor_list.pack(side=TOP, expand=YES, fill=X)
 
         self.lb1 = Label(self.rightPanel, text=self.la.label_list)
-        self.lb1.pack(side=TOP, expand=YES, fill=X)
+        self.lb1.pack(side=TOP, expand=YES, fill=X, pady=3)
         self.listbox = Listbox(self.rightPanel, width=25, height=15)
         self.listbox.bind("<ButtonRelease-1>", self.selectPlateList)
-        self.listbox.pack(side=TOP, expand=YES, fill=X)
+        self.listbox.pack(side=TOP, expand=YES, fill=X, pady=3)
         self.btnDel = Button(self.rightPanel, text=self.la.clear, command=self.delBBox)
-        self.btnDel.pack(side=TOP, expand=YES, fill=X)
+        self.btnDel.pack(side=TOP, expand=YES, fill=X, pady=3)
         self.btnClear = Button(self.rightPanel, text=self.la.clear_all, command=self.clearAll)
-        self.btnClear.pack(side=TOP, expand=YES, fill=X)
+        self.btnClear.pack(side=TOP, expand=YES, fill=X, pady=3)
         self.btnDeleteImage = Button(self.rightPanel, text=self.la.delete_image, command=self.deleteImage)
-        self.btnDeleteImage.pack(side=TOP, expand=YES, fill=X)
+        self.btnDeleteImage.pack(side=TOP, expand=YES, fill=X, pady=3)
 
         # control panel for image navigation
         self.ctrPanel = Frame(self.frame)
@@ -210,8 +226,21 @@ class LabelTool():
         self.frame.columnconfigure(1, weight=1)
         self.frame.rowconfigure(4, weight=1)
 
+        #import plate recognization dll
+        self.plr = pr.Plate_recog('detection')
+        self.plate_recog_init = True
+        if not self.plr.init():
+            self.plate_recog_init = False
+            print("Alg init error...")
+
         if self.isloadconfsuccess:
             self.loadDir()
+
+    def selectPlateRegion(self,event=None):
+        self.plate_region = self.pregion_list.get()
+        self.PLATE_COLOR = PLATE_COLORS[self.pregion_list.current()]
+        self.pcolor_list['values'] = tuple(self.PLATE_COLOR)
+        self.pcolor_list.current(0)
 
     def selectPlateColor(self,event=None):
         self.plate_color = self.pcolor_list.get()
@@ -226,7 +255,30 @@ class LabelTool():
         plate_number = ""
         plate_number = plate_number.join(self.plate.plateLists[idx][1])
         self.pnumber_entry.insert(0,plate_number)
-        self.pcolor_list.current(PLATE_COLOR.index(self.plate.plateLists[idx][4]))
+        count = 0
+        while not self.plate.plateLists[idx][4] in self.PLATE_COLOR:
+            if count > REGION_NUM - 1:
+                break
+            count += 1
+            if self.region_no + 1 < REGION_NUM:
+                self.region_no += 1
+            else:
+                self.region_no = 0
+            self.PLATE_COLOR = PLATE_COLORS[self.region_no]
+        self.pregion_list.current(self.region_no)
+        self.pcolor_list['values'] = tuple(self.PLATE_COLOR)
+        self.pcolor_list.current(self.PLATE_COLOR.index(self.plate.plateLists[idx][4]))
+
+    def plate_recognize(self):
+        if not self.plate_recog_init or self.rect_min > self.rect_num:
+            return
+        self.plate.chars = ''
+        self.plate.char_num = 0
+        # self.img_src.save("img.jpg")
+        chars,probs = self.plr.recogize(self.img_src,self.plate.pbox,self.plate.cboxes)
+        self.pnumber_entry.delete(0,END)
+        self.pnumber_entry.insert(0,chars)
+
 
     def loadConf(self):
         self.isloadconfsuccess = False
@@ -313,7 +365,8 @@ class LabelTool():
     def loadImage(self):
         # load image
         imagepath = self.imageList[self.cur - 1]
-        self.img = Image.open(imagepath)
+        self.img_src = Image.open(imagepath)
+        self.img = self.img_src
 
         # Enlarge local image
         if self.isCrop:
@@ -484,13 +537,13 @@ class LabelTool():
             self.isCrop = True
             self.isEnlarge = True
             self.crop_box = (xmin-20,ymin-20,xmax+20,ymax+20)
+            f,box = cn.checkbox(self.crop_box, self.img.width, self.img.height)
+            if f:
+                self.crop_box = box
             box_w = self.crop_box[2] - self.crop_box[0]
             box_h = self.crop_box[3] - self.crop_box[1]
             self.crop_rate_x = float(box_w/self.scale_x)/self.scale_W
             self.crop_rate_y = float(box_h/self.scale_y)/self.scale_H
-            f,box = cn.checkbox(self.crop_box, self.img.width, self.img.height)
-            if f:
-                self.crop_box = box
             self.click_num = 0
         else:
             self.isEnlarge = False
@@ -511,7 +564,7 @@ class LabelTool():
                                 self.plate.pbox,self.plate.cboxes,
                                 self.plate.color]
             if False == self.plate.chars.isalnum() or self.rect_num - 1 != len(self.plate.chars):
-                messagebox.showerror("Plate", "车牌格式错误(The format of plate is error! )")
+                messagebox.showerror(self.la.message_win_plate, self.la.plate_format_error)
                 return
             self.plate.plateLists.append(self.plate.plate)
             self.rect_num = 0
@@ -527,7 +580,7 @@ class LabelTool():
             plate_chars = str(self.pnumber_entry.get())
             if False == plate_chars.isalnum() or \
                 self.plate.plateLists[self.selectedListboxId][0] != len(plate_chars):
-                messagebox.showerror("Plate", "车牌格式错误(The format of plate is error! )")
+                messagebox.showerror(self.la.message_win_plate, self.la.plate_format_error)
                 return
             self.plate.plateLists[self.selectedListboxId][1] = plate_chars
             self.plate.plateLists[self.selectedListboxId][4] = self.plate_color
@@ -791,7 +844,8 @@ class LabelTool():
         self.isCrop = False
         while self.cur < self.total:
             imagepath = self.imageList[self.cur - 1]
-            self.imagename = os.path.split(imagepath)[-1].split('.')[0]
+            self.imagename = os.path.split(imagepath)[-1]
+            self.imagename = self.imagename[:-4]
             labelname = self.imagename + '.xml'
             self.labelfilename = os.path.join(self.outDir, labelname)
             if os.path.exists(self.labelfilename):

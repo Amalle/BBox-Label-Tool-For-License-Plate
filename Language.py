@@ -26,6 +26,11 @@ class Language:
         self.enlarge = ''
         self.erase_block = ''
         self.load_plate_cache = ''
+        self.auto_plate_recog = ''
+
+        # message
+        self.message_win_plate = "Plate"
+        self.plate_format_error = "The format of plate is error!"
 
         # set language
         self.setLanguage()
@@ -34,6 +39,7 @@ class Language:
         if self.language_mode == 'EN':
             #label
             self.image_dir = 'Image Dir'
+            self.region = 'Region'
             self.plate_number = 'Plate Number'
             self.plate_color = 'Plate Color'
             self.label_list = 'Label list'
@@ -53,9 +59,15 @@ class Language:
             self.enlarge = 'Enlarge(F5)'
             self.erase_block = 'EraseBlock(F6)'
             self.load_plate_cache = 'LoadPLateCache(F7)'
+            self.auto_plate_recog = 'PlateRecognization'
+
+            # message
+            self.message_win_plate = "Plate"
+            self.plate_format_error = "The format of plate is error!"
         elif self.language_mode == 'CN':
             #label
             self.image_dir = '图片路径'
+            self.region = '国家/地区'
             self.plate_number = '车牌号码'
             self.plate_color = '车牌颜色'
             self.label_list = '标注列表'
@@ -75,3 +87,8 @@ class Language:
             self.enlarge = '放大(F5)'
             self.erase_block = '涂黑(F6)'
             self.load_plate_cache = '载入最近车牌(F7)'
+            self.auto_plate_recog = '识别车牌'
+
+            # message
+            self.message_win_plate = "车牌"
+            self.plate_format_error = "车牌格式错误!"

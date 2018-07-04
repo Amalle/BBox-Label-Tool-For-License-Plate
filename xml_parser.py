@@ -25,6 +25,8 @@ class Plate:
         self.plateLists = []
 
         mark_node = root.find("markNode")
+        if mark_node is None:
+            return
         obj = mark_node.find("object")
         if None != obj:
             for obj in mark_node.iter("object"):
