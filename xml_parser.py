@@ -1,5 +1,5 @@
 from lxml import etree, objectify
-import os
+import os,glob
 import xml.etree.ElementTree as ET
 
 class Plate:
@@ -9,6 +9,12 @@ class Plate:
         self.pbox = []        #车牌的box
         self.cboxes = []       #车牌各个字符的box
         self.color = []      #车牌的颜色
+        self.layer = []      #车牌的层数
+
+        self.folder = []
+        self.image_name = []
+        self.imgW = 0
+        self.imgH = 0
 
         self.plate = []       #车牌结构
         self.plateLists = []  #所有车牌
@@ -26,7 +32,11 @@ class Plate:
 
         mark_node = root.find("markNode")
         if mark_node is None:
-            return
+            if root.tag != 'annotation':
+                return
+            else:
+                self.readOldXml(xmlfile)
+                return
         obj = mark_node.find("object")
         if None != obj:
             for obj in mark_node.iter("object"):
@@ -34,6 +44,7 @@ class Plate:
                 chars = []
                 cboxes = []
                 color = ''
+                layer = ''
                 char_num = 0
 
                 if 'plate' != obj.find('targettype').text:
@@ -41,6 +52,9 @@ class Plate:
                 cr = obj.find("color")
                 if None != cr:
                     color = cr.text
+                la = obj.find("mode")
+                if None != la:
+                    color = la.text
                 vertexs = obj.find("vertexs")
                 if None != vertexs:
                     vertex = vertexs.find('vertex')
@@ -65,14 +79,88 @@ class Plate:
                                     cbox.append([x,y])
                                 char_num += 1
                                 cboxes.append(cbox)
-                plate = [char_num,chars,pbox,cboxes,color]
+                plate = [char_num,chars,pbox,cboxes,color,layer]
                 self.plateLists.append(plate)
-                    
+
+    def readOldXml(self,xmlfile):
+        tree = ET.parse(xmlfile)
+        root = tree.getroot()
+
+        self.plateLists = []
+
+        if root.tag != 'annotation':
+            return False
+
+        folder_ = root.find('folder')
+        if folder_ is not None:
+            self.folder = folder_.text
+        image_name_ = root.find('ImageName')
+        if image_name_ is not None:
+            self.image_name = image_name_.text
+
+        size = root.find('size')
+        if size is None:
+            return False
+        self.imgW = int(size.find('width').text)
+        self.imgH = int(size.find('height').text)
+        obj = root.find('object')
+        if obj is None:
+            return False
+        plate = obj.find('plate')
+        if plate is None:
+            return False
+
+        for p in obj.iter('plate'):
+            pbox = []
+            chars = []
+            cboxes = []
+            color = ''
+            layer = ''
+            char_num = 0
+
+            cr = p.find('color')
+            if cr != None:
+                color = cr.text
+            la = p.find('mode')
+            if la != None:
+                layer = la.text
+
+            vertexs = p.find('vertexs')
+            if vertexs is None:
+                return False
+            for ver in vertexs.iter('vertex'):
+                x = int(ver.find('x').text)
+                y = int(ver.find('y').text)
+                pbox.append([x,y])
+            characters = p.find('characters')
+            if characters is None:
+                return False
+            char = characters.find('c')
+            if char is None:
+                return False
+            for char in characters.iter('c'):
+                c = char.find('data').text
+                if c is None:
+                    return False
+                chars.append(c)
+                vertex = char.find('vertex')
+                if None != vertex:
+                    cbox = []
+                    for ver in char.iter('vertex'):
+                        x = int(ver.find('x').text)
+                        y = int(ver.find('y').text)
+                        cbox.append([x,y])
+                    char_num += 1
+                    cboxes.append(cbox)
+            plate = [char_num,chars,pbox,cboxes,color,layer]
+            self.plateLists.append(plate)
+        return True
+        
     def writeXml(self,xmlfile):
         E = objectify.ElementMaker(annotate=False)
         anno_tree = E.dataroot(
-            E.folder(''),
-            E.filename("test.jpg"),
+            E.folder(self.folder),
+            E.filename(self.image_name),
             E.createdata(''),
             E.modifydata(''),
             E.width(''),
@@ -95,6 +183,7 @@ class Plate:
             pbox = plate[2]
             cboxes = plate[3]
             color = plate[4]
+            layer = plate[5]
             E1 = objectify.ElementMaker(annotate=False)
             anno_tree1 = E1.object(
                 E1.targettype('plate'),
@@ -103,7 +192,8 @@ class Plate:
                 E1.truncated(''),
                 E1.difficult(''),
                 E1.remark(''),
-                E1.color(color)
+                E1.color(color),
+                E1.mode(layer)
             )
 
             E5 = objectify.ElementMaker(annotate=False)
@@ -141,9 +231,20 @@ class Plate:
 
         etree.ElementTree(anno_tree).write(xmlfile, encoding='utf-8', xml_declaration=True)
 
-# p = Plate()
-# p.readXml('test/LPR_428.xml')
-# p.writeXml('test/xml.xml')
+    def convertOldXml2New(self,xmlDir):
+        xmlList = glob.glob(os.path.join(xmlDir, '*.xml'))
+        No = 0
+        for xmlfile in xmlList:
+            No += 1
+            print(str(No)+'/'+str(len(xmlList))+'  '+xmlfile)
+            if self.readOldXml(xmlfile):
+                self.writeXml(xmlfile)
+            # else:
+            #     imgfile = xmlfile[:-4] + '.jpg'
+            #     if os.path.exists(imgfile):
+            #         os.remove(imgfile)
+            #     os.remove(xmlfile)
 
-# p.printPlate()
-# print(p.plateLists)
+
+# p = Plate()
+# p.convertOldXml2New("Z:\\maqiao\\DNN\\MTCNN\\plate_data1\\data")

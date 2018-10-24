@@ -70,6 +70,7 @@ class Language:
             self.region = '国家/地区'
             self.plate_number = '车牌号码'
             self.plate_color = '车牌颜色'
+            self.plate_layer = '车牌层数'
             self.label_list = '标注列表'
             self.goto_id = '跳转到'
 

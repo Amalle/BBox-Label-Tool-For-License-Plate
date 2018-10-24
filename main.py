@@ -22,6 +22,7 @@ import cv2
 import numpy as np
 import plate_recog as pr
 from parameters import * 
+import log
 
 class LabelTool():
     def __init__(self, master):
@@ -118,6 +119,10 @@ class LabelTool():
         self.PLATE_COLOR = PLATE_COLORS[0]
         self.plate_color = ''
 
+        # Plate layer
+        self.PLATE_LAYER = PLATE_LAYERS[0]
+        self.plate_layer = ''
+
         # Clear 
         self.clear = False
 
@@ -153,7 +158,7 @@ class LabelTool():
         # showing bbox info & delete bbox
         self.rightPanel = Frame(self.frame)
         self.rightPanel.grid(row=1, column=2, rowspan=6, columnspan=1, sticky=W+N)
-
+        # region
         self.pregion = Label(self.rightPanel, text=self.la.region)
         self.pregion.pack(side=TOP, expand=YES, fill=X, pady=5)
         e_region = StringVar() 
@@ -162,7 +167,7 @@ class LabelTool():
         self.pregion_list.current(0)
         self.pregion_list.bind("<<ComboboxSelected>>", self.selectPlateRegion)
         self.pregion_list.pack(side=TOP, expand=YES, fill=X)
-
+        # plate number
         self.pnumber = Label(self.rightPanel, text=self.la.plate_number)
         self.pnumber.pack(side=TOP, expand=YES, fill=X, pady=5)
         self.btn_plate_recog = Button(self.rightPanel, text=self.la.auto_plate_recog, command=self.plate_recognize)
@@ -170,7 +175,7 @@ class LabelTool():
         e_number = StringVar() 
         self.pnumber_entry = Entry(self.rightPanel, textvariable=e_number)
         self.pnumber_entry.pack(side=TOP, expand=YES, fill=X)
-
+        # plate color
         self.pcolor = Label(self.rightPanel, text=self.la.plate_color)
         self.pcolor.pack(side=TOP, expand=YES, fill=X, pady=5)
         color_value = StringVar()
@@ -179,7 +184,16 @@ class LabelTool():
         self.pcolor_list.current(0)
         self.pcolor_list.bind("<<ComboboxSelected>>", self.selectPlateColor)
         self.pcolor_list.pack(side=TOP, expand=YES, fill=X)
-
+        # number of layer
+        self.player = Label(self.rightPanel, text=self.la.plate_layer)
+        self.player.pack(side=TOP, expand=YES, fill=X, pady=5)
+        layer_value = StringVar()
+        self.player_list = ttk.Combobox(self.rightPanel, textvariable=layer_value, state='readonly')
+        self.player_list['values'] = tuple(self.PLATE_LAYER)
+        self.player_list.current(0)
+        self.player_list.bind("<<ComboboxSelected>>", self.selectPlateLayer)
+        self.player_list.pack(side=TOP, expand=YES, fill=X)
+        # plate list
         self.lb1 = Label(self.rightPanel, text=self.la.label_list)
         self.lb1.pack(side=TOP, expand=YES, fill=X, pady=3)
         self.listbox = Listbox(self.rightPanel, width=25, height=15)
@@ -226,13 +240,19 @@ class LabelTool():
         self.frame.columnconfigure(1, weight=1)
         self.frame.rowconfigure(4, weight=1)
 
+        # log
+        self.log_path = "log.log"
+
+        log.writeLog(self.log_path,"alg ini ...")
         #import plate recognization dll
         self.plr = pr.Plate_recog('detection')
         self.plate_recog_init = True
         if not self.plr.init():
             self.plate_recog_init = False
             print("Alg init error...")
+            log.writeLog(self.log_path, "alg ini error ...")
 
+        log.writeLog(self.log_path, "alg ini ok ...")
         if self.isloadconfsuccess:
             self.loadDir()
 
@@ -244,6 +264,9 @@ class LabelTool():
 
     def selectPlateColor(self,event=None):
         self.plate_color = self.pcolor_list.get()
+
+    def selectPlateLayer(self, event=None):
+        self.plate_layer = self.player_list.get()
 
     def selectPlateList(self, event=None):
         sel = self.listbox.curselection()
@@ -473,6 +496,7 @@ class LabelTool():
 
                 # show plate box
                 color = COLORS[p_num+1 % len(COLORS)]
+                color_line = ['black','green','yellow']
                 boxId = []
                 x0,y0 = 0,0
                 for i in range(0,len(pbox)-1):
@@ -480,7 +504,7 @@ class LabelTool():
                     y1 = int(pbox[i][1]/self.scale_y)
                     x2 = int(pbox[i+1][0]/self.scale_x)
                     y2 = int(pbox[i+1][1]/self.scale_y)
-                    tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=2, fill=color)
+                    tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=2, fill=color_line[i])
                     boxId.append(tmpId)
                 x1 = int(pbox[-1][0]/self.scale_x)
                 y1 = int(pbox[-1][1]/self.scale_y)
@@ -556,10 +580,12 @@ class LabelTool():
         isPlateAdd = False
         plate_chars = ''
         self.plate_color = self.pcolor_list.get()
+        self.plate_layer = self.player_list.get()
         if self.rect_min <= self.rect_num:
             plate_chars = str(self.pnumber_entry.get())
             self.plate.chars = plate_chars
             self.plate.color = self.plate_color
+            self.plate.layer = self.plate_layer
             self.plate.plate = [self.rect_num-1,self.plate.chars,
                                 self.plate.pbox,self.plate.cboxes,
                                 self.plate.color]
@@ -584,6 +610,7 @@ class LabelTool():
                 return
             self.plate.plateLists[self.selectedListboxId][1] = plate_chars
             self.plate.plateLists[self.selectedListboxId][4] = self.plate_color
+            self.plate.plateLists[self.selectedListboxId][5] = self.plate_layer
             self.selectedListboxId = -1
             isPlateAdd = True
 
@@ -858,6 +885,7 @@ class LabelTool():
     def eraseBlock(self, event=None):
         if self.isCrop:
             return
+        log.writeLog(self.log_path, "erase block ...")
         if 1 == self.rect_num:
             x1 = min(self.plate.pbox[0][0], self.plate.pbox[1][0], \
                      self.plate.pbox[2][0], self.plate.pbox[3][0])
@@ -877,6 +905,7 @@ class LabelTool():
             self.plate.pbox = []
             self.rect_num = 0
             self.loadImage()
+            log.writeLog(self.log_path, "erase block ok")
 
     def loadPlateCache(self, event=None):
         if 0 == len(self.plate_cache):
