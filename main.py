@@ -242,6 +242,7 @@ class LabelTool():
 
         # log
         self.log_path = "log.log"
+        log.logIni(self.log_path)
 
         log.writeLog(self.log_path,"alg ini ...")
         #import plate recognization dll
@@ -896,16 +897,26 @@ class LabelTool():
             y2 = max(self.plate.pbox[0][1], self.plate.pbox[1][1], \
                      self.plate.pbox[2][1], self.plate.pbox[3][1])   
             box = (x1, y1, x2, y2)
+            log.writeLog(self.log_path, "x1,y1,x2,y2:"+str(x1)+' '+str(y1)+' '+str(x2)+' '+str(y2))
             bw = box[2] - box[0]
             bh = box[3] - box[1]
+            log.writeLog(self.log_path, "bw,bh:"+str(bw)+' '+str(bh))
             img_block = Image.new("RGB",(bw,bh),(0,0,0))
             self.img.paste(img_block,box)
             imagepath = self.imageList[self.cur - 1]
-            self.img.save(imagepath,"JPEG")
+            log.writeLog(self.log_path, imagepath)
+            try:
+                self.img.save(imagepath,"JPEG")
+            except IOError:
+                print("save image error")
+                log.writeLog(self.log_path, "save image error")
             self.plate.pbox = []
             self.rect_num = 0
+            log.writeLog(self.log_path, "load image")
             self.loadImage()
             log.writeLog(self.log_path, "erase block ok")
+        else:
+            log.writeLog(self.log_path, "rect num is not 1")
 
     def loadPlateCache(self, event=None):
         if 0 == len(self.plate_cache):
