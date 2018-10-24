@@ -907,7 +907,7 @@ class LabelTool():
             log.writeLog(self.log_path, imagepath)
             try:
                 self.img.save(imagepath,"JPEG")
-            except IOError:
+            finally:
                 print("save image error")
                 log.writeLog(self.log_path, "save image error")
             self.plate.pbox = []
