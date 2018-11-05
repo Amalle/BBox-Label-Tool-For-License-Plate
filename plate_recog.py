@@ -19,6 +19,9 @@ class Plate_recog:
         # algorithm type: classify or detection
         self.alg_type = alg_type 
 
+        self.pr = []
+        self.is_plr = False
+
         # result 
         self.chars = ''
         self.probs = []
@@ -28,18 +31,19 @@ class Plate_recog:
         # thresh for chars box and  label box
         self.iou_thresh_to_label = 0.05
 
-    def init(self):
+    def init(self, plate_region):
         # initialize yolo
-        if self.alg_type == 'classify':
-            # yolo classify
-            cfg_file = b"mnist.cfg"
-            weights_file = b"mnist_2840.weights"
-        elif self.alg_type == 'detection':
-            # yolo detection
+        if plate_region == '台湾':
+            # plate detection for taiwan 
             cfg_file = b"yolov2-tiny-TW-char.cfg"
             weights_file = b"yolov2-tiny-TW-char.weights"
+        else:
+            # plate detection
+            cfg_file = b"yolov3-tiny-char.cfg"
+            weights_file = b"yolov3-tiny-char_final.weights"
         self.pr = yolo.Yolo()
         self.is_plr = self.pr.init(cfg_file,weights_file,self.alg_type)
+        
         return self.is_plr
 
     def getBound(self,point4):
@@ -112,19 +116,19 @@ class Plate_recog:
             
         return char_img_list
 
-    def classfiy(self,chars_box):
-        self.chars = ''
-        self.probs = []
-        char_imgs = self.rotate_palte(chars_box)
-        for im in char_imgs:
-            im = np.array(im,np.uint8)
-            # im = im[:,:,(2,1,0)]
-            wh = im.shape
+    # def classfiy(self,chars_box):
+    #     self.chars = ''
+    #     self.probs = []
+    #     char_imgs = self.rotate_palte(chars_box)
+    #     for im in char_imgs:
+    #         im = np.array(im,np.uint8)
+    #         # im = im[:,:,(2,1,0)]
+    #         wh = im.shape
 
-            obj_cls,prob = self.pr.classify(im,wh[1],wh[0])
+    #         obj_cls,prob = self.pr.classify(im,wh[1],wh[0])
 
-            self.chars += pcd.PLATE_CHARS_CN[obj_cls]
-            self.probs.append(prob)
+    #         self.chars += pcd.PLATE_CHARS_CN[obj_cls]
+    #         self.probs.append(prob)
 
     def checkCharsBox(self,chars_box,chars_box_label,probs):
         # mean distance of all chars box center
@@ -176,7 +180,7 @@ class Plate_recog:
                 ind_dels[ind] = True
         return ind_dels
 
-    def detect(self,chars_box_label):
+    def detect(self,chars_box_label, plate_region):
         wh = self.img_detect.shape
         img_show = self.img_detect.copy()
         isdet,objs = self.pr.detect(self.img_detect,wh[1],wh[0])
@@ -228,7 +232,7 @@ class Plate_recog:
             for c in chs:
                 self.chars += c
 
-    def recogize(self,img,plate_box,chars_box):
+    def recogize(self,img,plate_box,chars_box,plate_region):
         if not self.is_plr:
             return # algorithm initialize error
 
@@ -241,12 +245,12 @@ class Plate_recog:
         # cv2.imshow("imgp",self.img_perspective)
 
         
-        # classify each char
-        if self.alg_type == 'classify':
-            self.classfiy(chars_box)
+        # # classify each char
+        # if self.alg_type == 'classify':
+        #     self.classfiy(chars_box)
 
         # detect each char
-        elif self.alg_type == 'detection':
-            self.detect(chars_box)
+        if self.alg_type == 'detection':
+            self.detect(chars_box, plate_region)
 
         return self.chars,self.probs

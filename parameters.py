@@ -16,7 +16,7 @@ PLATE_COLOR_TW = ["白底黑字","白底红字","红底白字","绿底白字","�
 PLATE_COLORS = [PLATE_COLOR_CN,PLATE_COLOR_TW]
 
 # number of layer of plate
-PLATE_LAYERS = ["单层", "双层"]
+PLATE_LAYERS = ["单", "双"]
 
 # image sizes for the examples
 # WIDTH = 1000

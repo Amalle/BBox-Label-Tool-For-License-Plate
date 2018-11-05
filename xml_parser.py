@@ -2,6 +2,8 @@ from lxml import etree, objectify
 import os,glob
 import xml.etree.ElementTree as ET
 
+# import cv2
+
 class Plate:
     def __init__(self):
         self.char_num = 0     #车牌字符数
@@ -19,6 +21,8 @@ class Plate:
         self.plate = []       #车牌结构
         self.plateLists = []  #所有车牌
 
+        self.xml_mode = 1  #xml标注格式：0-老版格式， 1-新版格式
+
     def printPlate(self):
         for pl in self.plateLists:
             for p in pl:
@@ -33,10 +37,11 @@ class Plate:
         mark_node = root.find("markNode")
         if mark_node is None:
             if root.tag != 'annotation':
-                return
+                return False
             else:
+                self.xml_mode = 0
                 self.readOldXml(xmlfile)
-                return
+                return True
         obj = mark_node.find("object")
         if None != obj:
             for obj in mark_node.iter("object"):
@@ -54,7 +59,7 @@ class Plate:
                     color = cr.text
                 la = obj.find("mode")
                 if None != la:
-                    color = la.text
+                    layer = la.text
                 vertexs = obj.find("vertexs")
                 if None != vertexs:
                     vertex = vertexs.find('vertex')
@@ -81,6 +86,7 @@ class Plate:
                                 cboxes.append(cbox)
                 plate = [char_num,chars,pbox,cboxes,color,layer]
                 self.plateLists.append(plate)
+        return True
 
     def readOldXml(self,xmlfile):
         tree = ET.parse(xmlfile)
@@ -156,15 +162,19 @@ class Plate:
             self.plateLists.append(plate)
         return True
         
-    def writeXml(self,xmlfile):
+    def writeXml(self,xmlfile, imgW, imgH, imgD):
+        if self.xml_mode == 0:
+            self.writeOldXml(xmlfile, imgW, imgH, imgD)
+            return
         E = objectify.ElementMaker(annotate=False)
         anno_tree = E.dataroot(
             E.folder(self.folder),
             E.filename(self.image_name),
             E.createdata(''),
             E.modifydata(''),
-            E.width(''),
-            E.height(''),
+            E.width(imgW),
+            E.height(imgH),
+            E.depth(imgD),
             E.DayNight(''),
             E.weather(''),
             E.Marker(''),
@@ -231,6 +241,94 @@ class Plate:
 
         etree.ElementTree(anno_tree).write(xmlfile, encoding='utf-8', xml_declaration=True)
 
+    def writeOldXml(self,xmlfile, imgW, imgH, imgD):
+        E = objectify.ElementMaker(annotate=False)
+        anno_tree = E.annotation(
+            E.folder(self.folder),
+            E.filename(self.image_name),
+            E.createdata(''),
+            E.modifydata(''),
+            E.segmented('')
+        )
+        E_source = objectify.ElementMaker(annotate=False)
+        anno_tree_source = E_source.source(
+            E_source.database(''),
+            E_source.annotation(''),
+            E_source.image(''),
+            E_source.location(''),
+            E_source.time('Day'),
+            E_source.weather('Sunny')
+        )
+        anno_tree.append(anno_tree_source)
+        E_owner = objectify.ElementMaker(annotate=False)
+        anno_tree_owner = E_owner.owner(
+            E_owner.name('')
+        )
+        anno_tree.append(anno_tree_owner)
+        E_size = objectify.ElementMaker(annotate=False)
+        anno_tree_size = E_size.size(
+            E_size.width(imgW),
+            E_size.height(imgH),
+            E_size.depth(imgD)
+        )
+        anno_tree.append(anno_tree_size)
+           
+        E_object = objectify.ElementMaker(annotate=False)
+        anno_tree_object = E_object.object(
+            E_object.name('Plate'),
+            E_object.pose('Front')
+        )
+
+        for plate in self.plateLists:
+            char_num = plate[0]
+            chars = plate[1]
+            pbox = plate[2]
+            cboxes = plate[3]
+            color = plate[4]
+            layer = plate[5]
+            E_plate = objectify.ElementMaker(annotate=False)
+            anno_tree_plate = E_plate.plate(
+                E_plate.color(color),
+                E_plate.mode(layer),
+                E_plate.truncated(''),
+                E_plate.version('')
+            )
+
+            E5 = objectify.ElementMaker(annotate=False)
+            anno_tree5 = E5.vertexs()
+
+            for i in range(0,4):
+                E6 = objectify.ElementMaker(annotate=False)
+                anno_tree6 = E6.vertex(
+                    E6.x(pbox[i][0]),
+                    E6.y(pbox[i][1])
+                )
+                anno_tree5.append(anno_tree6)
+            anno_tree_plate.append(anno_tree5)
+
+            E4 = objectify.ElementMaker(annotate=False)
+            anno_tree4 = E4.characters()
+
+            for i in range(0,char_num):
+                cbox = cboxes[i]
+                E2 = objectify.ElementMaker(annotate=False)
+                anno_tree2 = E2.c(
+                    E2.data(chars[i].upper()),
+                )
+                for j in range(0,4):
+                    E7 = objectify.ElementMaker(annotate=False)
+                    anno_tree7 = E7.vertex(
+                        E7.x(cboxes[i][j][0]),
+                        E7.y(cboxes[i][j][1])
+                    )
+                    anno_tree2.append(anno_tree7)
+                anno_tree4.append(anno_tree2)
+            anno_tree_plate.append(anno_tree4)
+            anno_tree_object.append(anno_tree_plate)
+        anno_tree.append(anno_tree_object)
+
+        etree.ElementTree(anno_tree).write(xmlfile, encoding='utf-8', xml_declaration=True)
+
     def convertOldXml2New(self,xmlDir):
         xmlList = glob.glob(os.path.join(xmlDir, '*.xml'))
         No = 0
@@ -245,6 +343,45 @@ class Plate:
             #         os.remove(imgfile)
             #     os.remove(xmlfile)
 
+#     def convertXml2Old(self, xmlDir):
+#         xmlList = glob.glob(os.path.join(xmlDir, '*.xml'))
+#         No = 0
+#         for xmlfile in xmlList:
+#             No += 1
+#             print(str(No)+'/'+str(len(xmlList))+'  '+xmlfile)
+#             imgfile = xmlfile[:-4] + '.jpg'
+#             if self.readXml(xmlfile):
+#                 img = cv2.imread(imgfile)
+#                 if img is not None:
+#                     for p in self.plateLists:
+#                         p[5] = '单'
+#                     self.writeOldXml(xmlfile, img.shape[1],img.shape[0],img.shape[2])
+#             # else:
+#             #     imgfile = xmlfile[:-4] + '.jpg'
+#             #     if os.path.exists(imgfile):
+#             #         os.remove(imgfile)
+#             #     os.remove(xmlfile)
+
+#     # change attribute
+#     def convertXml2Xml(self, xmlDir):
+#         xmlList = glob.glob(os.path.join(xmlDir, '*.xml'))
+#         No = 0
+#         for xmlfile in xmlList:
+#             No += 1
+#             print(str(No)+'/'+str(len(xmlList))+'  '+xmlfile)
+#             imgfile = xmlfile[:-4] + '.jpg'
+#             if self.readXml(xmlfile):
+#                 img = cv2.imread(imgfile)
+#                 if img is not None:
+#                     # for p in self.plateLists:
+#                     #     p[5] = '单'
+#                     self.writeXml(xmlfile, img.shape[1],img.shape[0],img.shape[2])
+#             # else:
+#             #     imgfile = xmlfile[:-4] + '.jpg'
+#             #     if os.path.exists(imgfile):
+#             #         os.remove(imgfile)
+#             #     os.remove(xmlfile)
+
 
 # p = Plate()
-# p.convertOldXml2New("Z:\\maqiao\\DNN\\MTCNN\\plate_data1\\data")
+# p.convertXml2Old("F:\\xg\\test1")

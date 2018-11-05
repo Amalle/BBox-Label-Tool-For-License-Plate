@@ -31,6 +31,7 @@ class Language:
         # message
         self.message_win_plate = "Plate"
         self.plate_format_error = "The format of plate is error!"
+        self.plate_region_error = "Please select region!"
 
         # set language
         self.setLanguage()
@@ -64,6 +65,7 @@ class Language:
             # message
             self.message_win_plate = "Plate"
             self.plate_format_error = "The format of plate is error!"
+            self.plate_region_error = "Please select region!"
         elif self.language_mode == 'CN':
             #label
             self.image_dir = '图片路径'
@@ -93,3 +95,4 @@ class Language:
             # message
             self.message_win_plate = "车牌"
             self.plate_format_error = "车牌格式错误!"
+            self.plate_region_error = "请选择地区!"

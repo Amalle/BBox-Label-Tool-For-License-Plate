@@ -1,24 +1,10 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
 
-from tkinter import *
- 
-class Test():
-    def __init__(self, master):
-        self.parent = master
-        e = StringVar()
-        self.entry = Entry(self.parent, textvariable=e)
-        self.entry.pack()
-        self.entry['state'] = 'disabled'
-        self.btn = Button(self.parent, text="Edit", command=self.changeState)
-        self.btn.pack()
-    def changeState():
-        if self.entry['state'] == 'disabled':
-            self.entry['state'] = 'normal'
-            self.entry.
-        else:
-            self.entry['state'] = 'disabled'
+try:
+    fh = open("Z:/maqiao/test/testfile", "w")
+    fh.write("这是一个测试文件，用于测试异常!!")
+finally:
+    print("Error: 没有找到文件或读取文件失败")
 
-if __name__ == '__main__':
-    root = Tk()
-    tool = Test(root)
-    root.resizable(width=True, height=True)
-    root.mainloop()
+print("abc")

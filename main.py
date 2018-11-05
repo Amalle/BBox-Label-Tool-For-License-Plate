@@ -57,7 +57,7 @@ class LabelTool():
 
         # rect number
         self.rect_num = 0  #rects of plate and charactors 6~9
-        self.rect_min = 6
+        self.rect_min = 5
         self.rect_max = 9
 
         # crop image
@@ -114,13 +114,15 @@ class LabelTool():
         # country/region
         self.region_no = 0
         self.plate_region = PLATE_REGION[self.region_no]
+        self.dl_palte_dll_ini_ok = False
+        self.tw_plate_dll_ini_ok = False
 
         # Plate color
         self.PLATE_COLOR = PLATE_COLORS[0]
         self.plate_color = ''
 
         # Plate layer
-        self.PLATE_LAYER = PLATE_LAYERS[0]
+        self.PLATE_LAYER = PLATE_LAYERS
         self.plate_layer = ''
 
         # Clear 
@@ -248,10 +250,12 @@ class LabelTool():
         #import plate recognization dll
         self.plr = pr.Plate_recog('detection')
         self.plate_recog_init = True
-        if not self.plr.init():
+        if not self.plr.init("大陆"):
             self.plate_recog_init = False
             print("Alg init error...")
             log.writeLog(self.log_path, "alg ini error ...")
+            return
+        self.dl_palte_dll_ini_ok = True
 
         log.writeLog(self.log_path, "alg ini ok ...")
         if self.isloadconfsuccess:
@@ -259,6 +263,19 @@ class LabelTool():
 
     def selectPlateRegion(self,event=None):
         self.plate_region = self.pregion_list.get()
+        self.region_no = PLATE_REGION.index(self.plate_region)
+        if not self.plr.init(self.plate_region):
+            self.plate_recog_init = False
+            print("Alg init error...")
+            log.writeLog(self.log_path, "alg ini error ...")
+            return
+        if self.region_no == 0:
+            self.dl_palte_dll_ini_ok = True
+            self.tw_plate_dll_ini_ok = False
+        else:
+            self.dl_palte_dll_ini_ok = False
+            self.tw_plate_dll_ini_ok = True
+            
         self.PLATE_COLOR = PLATE_COLORS[self.pregion_list.current()]
         self.pcolor_list['values'] = tuple(self.PLATE_COLOR)
         self.pcolor_list.current(0)
@@ -280,7 +297,7 @@ class LabelTool():
         plate_number = plate_number.join(self.plate.plateLists[idx][1])
         self.pnumber_entry.insert(0,plate_number)
         count = 0
-        while not self.plate.plateLists[idx][4] in self.PLATE_COLOR:
+        while self.plate.plateLists[idx][4] not in self.PLATE_COLOR:
             if count > REGION_NUM - 1:
                 break
             count += 1
@@ -292,14 +309,41 @@ class LabelTool():
         self.pregion_list.current(self.region_no)
         self.pcolor_list['values'] = tuple(self.PLATE_COLOR)
         self.pcolor_list.current(self.PLATE_COLOR.index(self.plate.plateLists[idx][4]))
+        self.player_list['values'] = tuple(self.PLATE_LAYER)
+        self.player_list.current(self.PLATE_LAYER.index(self.plate.plateLists[idx][5]))
 
     def plate_recognize(self):
+        self.plate_region = self.pregion_list.get()
+        self.region_no = PLATE_REGION.index(self.plate_region)
+        is_plate_dll_ini = True
+        if self.region_no == 0:
+            if not self.dl_palte_dll_ini_ok:
+                is_plate_dll_ini = False
+        else:
+            if not self.tw_plate_dll_ini_ok:
+                is_plate_dll_ini = False
+        if not is_plate_dll_ini:
+            if not self.plr.init(self.plate_region):
+                self.plate_recog_init = False
+                print("Alg init error...")
+                log.writeLog(self.log_path, "alg ini error ...")
+                return
+            if self.region_no == 0:
+                self.dl_palte_dll_ini_ok = True
+                self.tw_plate_dll_ini_ok = False
+            else:
+                self.dl_palte_dll_ini_ok = False
+                self.tw_plate_dll_ini_ok = True
+                
+        if self.plate_region not in PLATE_REGION:
+            messagebox.showerror(self.la.message_win_plate, self.la.plate_format_error)
+            return
         if not self.plate_recog_init or self.rect_min > self.rect_num:
             return
         self.plate.chars = ''
         self.plate.char_num = 0
         # self.img_src.save("img.jpg")
-        chars,probs = self.plr.recogize(self.img_src,self.plate.pbox,self.plate.cboxes)
+        chars,probs = self.plr.recogize(self.img_src,self.plate.pbox,self.plate.cboxes,self.plate_region)
         self.pnumber_entry.delete(0,END)
         self.pnumber_entry.insert(0,chars)
 
@@ -390,6 +434,7 @@ class LabelTool():
         # load image
         imagepath = self.imageList[self.cur - 1]
         self.img_src = Image.open(imagepath)
+        print(imagepath)
         self.img = self.img_src
 
         # Enlarge local image
@@ -589,7 +634,7 @@ class LabelTool():
             self.plate.layer = self.plate_layer
             self.plate.plate = [self.rect_num-1,self.plate.chars,
                                 self.plate.pbox,self.plate.cboxes,
-                                self.plate.color]
+                                self.plate.color, self.plate.layer]
             if False == self.plate.chars.isalnum() or self.rect_num - 1 != len(self.plate.chars):
                 messagebox.showerror(self.la.message_win_plate, self.la.plate_format_error)
                 return
@@ -599,6 +644,7 @@ class LabelTool():
             self.plate.pbox = []
             self.plate.cboxes = []
             self.plate.color = ''
+            self.plate.layer = ''
             self.selectedListboxId = -1
             isPlateAdd = True
         
@@ -634,7 +680,7 @@ class LabelTool():
         
 
         if 0 != len(self.plate.plateLists):
-            self.plate.writeXml(self.labelfilename)
+            self.plate.writeXml(self.labelfilename, self.img_src.width, self.img_src.height, 3)
         else:
             if os.path.exists(self.labelfilename):
                 os.remove(self.labelfilename)
@@ -653,7 +699,8 @@ class LabelTool():
         x1, y1 = event.x, event.y
         self.vertex[self.click_num-1] = [x1,y1]
         self.pnumber_entry.delete(0,END)
-        self.pcolor_list.current(0)
+        # self.pcolor_list.current(0)
+        # self.player_list.current(0)
         if self.click_num > 1:
             self.lineId = self.mainPanel.create_line(self.vertex[self.click_num-1][0], \
                                        self.vertex[self.click_num-1][1], \
@@ -897,26 +944,24 @@ class LabelTool():
             y2 = max(self.plate.pbox[0][1], self.plate.pbox[1][1], \
                      self.plate.pbox[2][1], self.plate.pbox[3][1])   
             box = (x1, y1, x2, y2)
-            log.writeLog(self.log_path, "x1,y1,x2,y2:"+str(x1)+' '+str(y1)+' '+str(x2)+' '+str(y2))
+            # log.writeLog(self.log_path, "x1,y1,x2,y2:"+str(x1)+' '+str(y1)+' '+str(x2)+' '+str(y2))
             bw = box[2] - box[0]
             bh = box[3] - box[1]
-            log.writeLog(self.log_path, "bw,bh:"+str(bw)+' '+str(bh))
+            # log.writeLog(self.log_path, "bw,bh:"+str(bw)+' '+str(bh))
             img_block = Image.new("RGB",(bw,bh),(0,0,0))
             self.img.paste(img_block,box)
             imagepath = self.imageList[self.cur - 1]
-            log.writeLog(self.log_path, imagepath)
+            # log.writeLog(self.log_path, imagepath)
             try:
                 self.img.save(imagepath,"JPEG")
-            finally:
+            except:
                 print("save image error")
                 log.writeLog(self.log_path, "save image error")
             self.plate.pbox = []
             self.rect_num = 0
-            log.writeLog(self.log_path, "load image")
+            # log.writeLog(self.log_path, "load image")
             self.loadImage()
-            log.writeLog(self.log_path, "erase block ok")
-        else:
-            log.writeLog(self.log_path, "rect num is not 1")
+            # log.writeLog(self.log_path, "erase block ok")
 
     def loadPlateCache(self, event=None):
         if 0 == len(self.plate_cache):
