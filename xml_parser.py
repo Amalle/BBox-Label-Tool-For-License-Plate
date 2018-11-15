@@ -51,6 +51,7 @@ class Plate:
                 color = ''
                 layer = ''
                 char_num = 0
+                trunc = 0
 
                 if 'plate' != obj.find('targettype').text:
                     continue
@@ -60,6 +61,10 @@ class Plate:
                 la = obj.find("mode")
                 if None != la:
                     layer = la.text
+                tc = obj.find('truncated')
+                if None != tc:
+                    if not tc.text is None:
+                        trunc = int(tc.text)
                 vertexs = obj.find("vertexs")
                 if None != vertexs:
                     vertex = vertexs.find('vertex')
@@ -84,7 +89,7 @@ class Plate:
                                     cbox.append([x,y])
                                 char_num += 1
                                 cboxes.append(cbox)
-                plate = [char_num,chars,pbox,cboxes,color,layer]
+                plate = [char_num,chars,pbox,cboxes,color,layer,trunc]
                 self.plateLists.append(plate)
         return True
 
@@ -123,6 +128,7 @@ class Plate:
             color = ''
             layer = ''
             char_num = 0
+            trunc = 0
 
             cr = p.find('color')
             if cr != None:
@@ -130,6 +136,10 @@ class Plate:
             la = p.find('mode')
             if la != None:
                 layer = la.text
+            tc = p.find('truncated')
+            if tc != None:
+                if not tc.text is None:
+                    trunc = int(tc.text)
 
             vertexs = p.find('vertexs')
             if vertexs is None:
@@ -158,7 +168,7 @@ class Plate:
                         cbox.append([x,y])
                     char_num += 1
                     cboxes.append(cbox)
-            plate = [char_num,chars,pbox,cboxes,color,layer]
+            plate = [char_num,chars,pbox,cboxes,color,layer,trunc]
             self.plateLists.append(plate)
         return True
         
@@ -194,12 +204,13 @@ class Plate:
             cboxes = plate[3]
             color = plate[4]
             layer = plate[5]
+            trunc = plate[6]
             E1 = objectify.ElementMaker(annotate=False)
             anno_tree1 = E1.object(
                 E1.targettype('plate'),
                 E1.cartype(''),
                 E1.pose(''),
-                E1.truncated(''),
+                E1.truncated(trunc),
                 E1.difficult(''),
                 E1.remark(''),
                 E1.color(color),
@@ -221,18 +232,27 @@ class Plate:
             E4 = objectify.ElementMaker(annotate=False)
             anno_tree4 = E4.characters()
 
-            for i in range(0,char_num):
-                cbox = cboxes[i]
+            for i in range(0,len(chars)):
                 E2 = objectify.ElementMaker(annotate=False)
+                c = chars[i]
+                if c.isalnum():
+                    c = chars[i].upper()
                 anno_tree2 = E2.char(
-                    E2.data(chars[i].upper()),
+                    E2.data(c),
                 )
                 for j in range(0,4):
-                    E7 = objectify.ElementMaker(annotate=False)
-                    anno_tree7 = E7.vertex(
-                        E7.x(cboxes[i][j][0]),
-                        E7.y(cboxes[i][j][1])
-                    )
+                    if i < len(cboxes):
+                        E7 = objectify.ElementMaker(annotate=False)
+                        anno_tree7 = E7.vertex(
+                            E7.x(cboxes[i][j][0]),
+                            E7.y(cboxes[i][j][1])
+                        )
+                    else:
+                        E7 = objectify.ElementMaker(annotate=False)
+                        anno_tree7 = E7.vertex(
+                            E7.x(0),
+                            E7.y(0)
+                        )
                     anno_tree2.append(anno_tree7)
                 anno_tree4.append(anno_tree2)
             anno_tree1.append(anno_tree4)
@@ -286,11 +306,12 @@ class Plate:
             cboxes = plate[3]
             color = plate[4]
             layer = plate[5]
+            trunc = plate[6]
             E_plate = objectify.ElementMaker(annotate=False)
             anno_tree_plate = E_plate.plate(
                 E_plate.color(color),
                 E_plate.mode(layer),
-                E_plate.truncated(''),
+                E_plate.truncated(trunc),
                 E_plate.version('')
             )
 
@@ -309,18 +330,27 @@ class Plate:
             E4 = objectify.ElementMaker(annotate=False)
             anno_tree4 = E4.characters()
 
-            for i in range(0,char_num):
-                cbox = cboxes[i]
+            for i in range(0,len(chars)):
                 E2 = objectify.ElementMaker(annotate=False)
+                c = chars[i]
+                if c.isalnum():
+                    c = chars[i].upper()
                 anno_tree2 = E2.c(
-                    E2.data(chars[i].upper()),
+                    E2.data(c),
                 )
                 for j in range(0,4):
-                    E7 = objectify.ElementMaker(annotate=False)
-                    anno_tree7 = E7.vertex(
-                        E7.x(cboxes[i][j][0]),
-                        E7.y(cboxes[i][j][1])
-                    )
+                    if i < len(cboxes):
+                        E7 = objectify.ElementMaker(annotate=False)
+                        anno_tree7 = E7.vertex(
+                            E7.x(cboxes[i][j][0]),
+                            E7.y(cboxes[i][j][1])
+                        )
+                    else:
+                        E7 = objectify.ElementMaker(annotate=False)
+                        anno_tree7 = E7.vertex(
+                            E7.x(0),
+                            E7.y(0)
+                        )
                     anno_tree2.append(anno_tree7)
                 anno_tree4.append(anno_tree2)
             anno_tree_plate.append(anno_tree4)

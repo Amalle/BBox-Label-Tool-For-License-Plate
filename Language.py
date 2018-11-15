@@ -46,6 +46,9 @@ class Language:
             self.label_list = 'Label list'
             self.goto_id = 'Go to Image No.'
 
+            # Checkbutton
+            self.truncated = 'truncated'
+
             #button
             self.save = 'Save(F2)'
             self.prev = '<<Prev(F1)'
@@ -75,6 +78,9 @@ class Language:
             self.plate_layer = '车牌层数'
             self.label_list = '标注列表'
             self.goto_id = '跳转到'
+
+            # Checkbutton
+            self.truncated = '遮挡'
 
             #button
             self.save = '保存(F2)'

@@ -47,6 +47,7 @@ class LabelTool():
         self.convas_w = int(WIDTH*scale)    #画布宽
         self.convas_h = int(HEIGHT*scale)    #画布高
         self.imageDir = ''
+        self.cur = 0
         self.loadConf()
 
         # display scale
@@ -75,7 +76,6 @@ class LabelTool():
         self.egDir = ''
         self.egList = []
         self.outDir = ''
-        self.cur = 0
         self.total = 0
         self.category = 0
         self.imagename = ''
@@ -117,6 +117,9 @@ class LabelTool():
         self.dl_palte_dll_ini_ok = False
         self.tw_plate_dll_ini_ok = False
 
+        # truncated   #车牌是否遮挡，默认没有遮挡(0)
+        self.truncated = 0
+
         # Plate color
         self.PLATE_COLOR = PLATE_COLORS[0]
         self.plate_color = ''
@@ -126,7 +129,7 @@ class LabelTool():
         self.plate_layer = ''
 
         # Clear 
-        self.clear = False
+        self.clear = False   # 有车牌被删除
 
         # Interface language
         self.language = 'CN'
@@ -177,6 +180,10 @@ class LabelTool():
         e_number = StringVar() 
         self.pnumber_entry = Entry(self.rightPanel, textvariable=e_number)
         self.pnumber_entry.pack(side=TOP, expand=YES, fill=X)
+        # truncated
+        self.trunc_value = IntVar()
+        self.truncated_cbn = Checkbutton(self.rightPanel,variable=self.trunc_value, command=self.selectTruncated,text=self.la.truncated)
+        self.truncated_cbn.pack(side=TOP, expand=YES, fill=X)
         # plate color
         self.pcolor = Label(self.rightPanel, text=self.la.plate_color)
         self.pcolor.pack(side=TOP, expand=YES, fill=X, pady=5)
@@ -280,6 +287,9 @@ class LabelTool():
         self.pcolor_list['values'] = tuple(self.PLATE_COLOR)
         self.pcolor_list.current(0)
 
+    def selectTruncated(self,event=None):
+        self.truncated = self.trunc_value.get()
+
     def selectPlateColor(self,event=None):
         self.plate_color = self.pcolor_list.get()
 
@@ -311,6 +321,9 @@ class LabelTool():
         self.pcolor_list.current(self.PLATE_COLOR.index(self.plate.plateLists[idx][4]))
         self.player_list['values'] = tuple(self.PLATE_LAYER)
         self.player_list.current(self.PLATE_LAYER.index(self.plate.plateLists[idx][5]))
+        self.trunc_value.set(self.plate.plateLists[idx][6])
+        self.truncated = self.trunc_value.get()
+        self.showLabel()
 
     def plate_recognize(self):
         self.plate_region = self.pregion_list.get()
@@ -338,7 +351,7 @@ class LabelTool():
         if self.plate_region not in PLATE_REGION:
             messagebox.showerror(self.la.message_win_plate, self.la.plate_format_error)
             return
-        if not self.plate_recog_init or self.rect_min > self.rect_num:
+        if not self.plate_recog_init:
             return
         self.plate.chars = ''
         self.plate.char_num = 0
@@ -352,7 +365,7 @@ class LabelTool():
         self.isloadconfsuccess = False
         file_dir = os.path.abspath(self.config_file)
         if os.path.exists(file_dir):
-            fl = open(file_dir,"r")
+            fl = open(file_dir,"r", encoding='utf-8')
             lines = fl.readlines()
             if len(lines) == 0:
                 return
@@ -366,6 +379,11 @@ class LabelTool():
                     if 0 != len(conf_value):
                         self.imageDir = conf_value
                         self.isloadconfsuccess = True
+                if 'Last image No' == conf_name:
+                    if 0 != len(conf_value):
+                        self.cur = int(conf_value)
+                    else:
+                        self.cur = 1
                 # if 'convas_w' == conf_name:
                 #     if 0 != len(conf_value):
                 #         self.convas_w = int(conf_value)
@@ -386,15 +404,18 @@ class LabelTool():
 
     def writeConf(self):
         file_dir = os.path.abspath(self.config_file)
-        f = open(file_dir,"w")
+        f = open(file_dir,"w", encoding='utf-8')
         txt_dir = 'image Dir: %s\n' % (self.imageDir)
         f.write(txt_dir)
+        txt_last_No = 'Last image No: %d\n' % (self.cur)
+        f.write(txt_last_No)
         # txt_w = 'convas_w: %d\n' % (self.convas_w)
         # f.write(txt_w)
         # txt_h = 'convas_h: %d' % (self.convas_h)
         # f.write(txt_h)
         # txt_la = 'language: %s' % (self.language)
         # f.write(txt_la)
+        f.close()
 
     def loadDir(self):
         if not self.isloadconfsuccess:
@@ -402,6 +423,7 @@ class LabelTool():
             file_dir = askdirectory()
             if not '' == file_dir:
                 self.imageDir = file_dir
+                self.cur = 0
                 self.writeConf()
         else:
             self.isloadconfsuccess = False
@@ -419,7 +441,6 @@ class LabelTool():
             self.clearAll()
         else:
             # default to the 1st image in the collection
-            self.cur = 1
             self.total = len(self.imageList)
 
             # set up output dir
@@ -462,7 +483,9 @@ class LabelTool():
         self.plate.plateLists = []
         if os.path.exists(self.labelfilename):
             self.plate.readXml(self.labelfilename)
+        self.selectedListboxId = -1
         self.showLabel()
+        self.writeConf()
             
     def showLabel(self):
         self.clearBBox()
@@ -534,14 +557,19 @@ class LabelTool():
                     cboxId.append(boxId)
                 self.cboxIdList.append(cboxId)
         else:
+            p_No = -1
             for plate in self.plate.plateLists:
+                p_No += 1
                 char_num = plate[0]
                 chars = plate[1]
                 pbox = plate[2]
                 cboxes = plate[3]
 
                 # show plate box
-                color = COLORS[p_num+1 % len(COLORS)]
+                # color = COLORS[p_num+1 % len(COLORS)]
+                color = 'red'
+                if self.selectedListboxId == p_No:
+                    color = 'green'
                 color_line = ['black','green','yellow']
                 boxId = []
                 x0,y0 = 0,0
@@ -550,7 +578,7 @@ class LabelTool():
                     y1 = int(pbox[i][1]/self.scale_y)
                     x2 = int(pbox[i+1][0]/self.scale_x)
                     y2 = int(pbox[i+1][1]/self.scale_y)
-                    tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=2, fill=color_line[i])
+                    tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=2, fill=color)
                     boxId.append(tmpId)
                 x1 = int(pbox[-1][0]/self.scale_x)
                 y1 = int(pbox[-1][1]/self.scale_y)
@@ -582,6 +610,8 @@ class LabelTool():
                     cboxId.append(boxId)
                 self.cboxIdList.append(cboxId)
                 p_num += 1
+            if self.selectedListboxId > -1:
+                self.listbox.select_set(self.selectedListboxId)
 
     def enlargePlate(self, event=None):
         if not self.isEnlarge:
@@ -620,25 +650,71 @@ class LabelTool():
             self.isCrop = False
         self.loadImage()
 
+    def checkPlateChars(self,chars):
+        is_wj = False
+        p_chars = []
+        if self.plate_region == "大陆":
+            if chars[0] == 'w' or chars[0] == 'W':
+                if chars[1] == 'j' or chars[1] == 'J':
+                    is_wj = True
+        if is_wj:
+            p_chars.append('WJ')
+            for i in range(2,len(chars)):
+                p_chars.append(chars[i])
+        else:
+            for c in chars:
+                p_chars.append(c)
+        return p_chars
+
     def saveImage(self, event=None):
         if 0 == self.cur:
             return
         isPlateAdd = False
-        plate_chars = ''
+        plate_chars = []
         self.plate_color = self.pcolor_list.get()
         self.plate_layer = self.player_list.get()
-        if self.rect_min <= self.rect_num:
-            plate_chars = str(self.pnumber_entry.get())
-            self.plate.chars = plate_chars
-            self.plate.color = self.plate_color
-            self.plate.layer = self.plate_layer
-            self.plate.plate = [self.rect_num-1,self.plate.chars,
-                                self.plate.pbox,self.plate.cboxes,
-                                self.plate.color, self.plate.layer]
-            if False == self.plate.chars.isalnum() or self.rect_num - 1 != len(self.plate.chars):
-                messagebox.showerror(self.la.message_win_plate, self.la.plate_format_error)
-                return
-            self.plate.plateLists.append(self.plate.plate)
+
+        # modify plate
+        if self.selectedListboxId > -1 and not self.clear:
+            plate_chars = self.checkPlateChars(str(self.pnumber_entry.get()))
+            # if self.truncated == 0:
+            #     if False == plate_chars.isalnum() or \
+            #         self.plate.plateLists[self.selectedListboxId][0] != len(plate_chars):
+            #         messagebox.showerror(self.la.message_win_plate, self.la.plate_format_error)
+            #         return
+            self.plate.plateLists[self.selectedListboxId][1] = plate_chars
+            self.plate.plateLists[self.selectedListboxId][4] = self.plate_color
+            self.plate.plateLists[self.selectedListboxId][5] = self.plate_layer
+            self.plate.plateLists[self.selectedListboxId][6] = self.truncated
+            self.selectedListboxId = -1
+            isPlateAdd = True
+        # add new plate
+        elif self.rect_num > 0:
+            if self.truncated == 0:
+                if self.rect_num < self.rect_min:
+                    messagebox.showerror(self.la.message_win_plate, self.la.plate_format_error)
+                    return
+                elif self.rect_min <= self.rect_num: 
+                    plate_chars = self.checkPlateChars(str(self.pnumber_entry.get()))
+                    self.plate.chars = plate_chars
+                    self.plate.color = self.plate_color
+                    self.plate.layer = self.plate_layer
+                    self.plate.plate = [self.rect_num-1,self.plate.chars,
+                                        self.plate.pbox,self.plate.cboxes,
+                                        self.plate.color, self.plate.layer,self.truncated]
+                    if self.rect_num - 1 != len(self.plate.chars):
+                        messagebox.showerror(self.la.message_win_plate, self.la.plate_format_error)
+                        return
+                    self.plate.plateLists.append(self.plate.plate)
+            else:
+                plate_chars = self.checkPlateChars(str(self.pnumber_entry.get()))
+                self.plate.chars = plate_chars
+                self.plate.color = self.plate_color
+                self.plate.layer = self.plate_layer
+                self.plate.plate = [self.rect_num-1,self.plate.chars,
+                                    self.plate.pbox,self.plate.cboxes,
+                                    self.plate.color, self.plate.layer,self.truncated]
+                self.plate.plateLists.append(self.plate.plate)
             self.rect_num = 0
             self.plate.chars = []
             self.plate.pbox = []
@@ -648,19 +724,6 @@ class LabelTool():
             self.selectedListboxId = -1
             isPlateAdd = True
         
-        # modify plate
-        if self.selectedListboxId > -1 and not self.clear:
-            plate_chars = str(self.pnumber_entry.get())
-            if False == plate_chars.isalnum() or \
-                self.plate.plateLists[self.selectedListboxId][0] != len(plate_chars):
-                messagebox.showerror(self.la.message_win_plate, self.la.plate_format_error)
-                return
-            self.plate.plateLists[self.selectedListboxId][1] = plate_chars
-            self.plate.plateLists[self.selectedListboxId][4] = self.plate_color
-            self.plate.plateLists[self.selectedListboxId][5] = self.plate_layer
-            self.selectedListboxId = -1
-            isPlateAdd = True
-
         # add new plate to plate cache
         if isPlateAdd:
             isSamePlate = False
@@ -674,16 +737,15 @@ class LabelTool():
                     self.plate_cache.pop(1)
                 self.plate_cache.append(plate_chars)
 
-        if self.clear:
-            self.clear = False
-
-        
-
         if 0 != len(self.plate.plateLists):
-            self.plate.writeXml(self.labelfilename, self.img_src.width, self.img_src.height, 3)
+            if isPlateAdd or self.clear:
+                self.plate.writeXml(self.labelfilename, self.img_src.width, self.img_src.height, 3)
         else:
             if os.path.exists(self.labelfilename):
                 os.remove(self.labelfilename)
+
+        if self.clear:
+            self.clear = False
 
         self.pnumber_entry.delete(0,END)
         self.isCrop = False
@@ -693,6 +755,7 @@ class LabelTool():
     def mouseClick(self, event):
         if 0 == self.cur:
             return
+        # self.selectedListboxId = -1
         self.click_num += 1
         iscboxout = False
 
@@ -701,6 +764,28 @@ class LabelTool():
         self.pnumber_entry.delete(0,END)
         # self.pcolor_list.current(0)
         # self.player_list.current(0)
+        self.trunc_value.set(0)
+        if self.click_num == 1:
+            is_selected = False
+            p = [event.x*self.crop_rate_x*self.scale_x, event.y*self.crop_rate_y*self.scale_y]
+            i = 0
+            for plate in self.plate.plateLists:
+                pbox = plate[2]
+                is_in_polygon = cn.InPolygon(p,pbox)
+                # print(pbox)
+                # print(is_in_polygon)
+                if is_in_polygon:
+                    self.selectedListboxId = i
+                    self.showLabel()
+                    self.selectPlateList()
+                    self.click_num = 0
+                    is_selected = True
+                    break
+                i += 1
+            if self.selectedListboxId > -1 and not is_selected:
+                self.selectedListboxId = -1
+                self.showLabel()
+
         if self.click_num > 1:
             self.lineId = self.mainPanel.create_line(self.vertex[self.click_num-1][0], \
                                        self.vertex[self.click_num-1][1], \
@@ -712,8 +797,7 @@ class LabelTool():
                 self.lineId = self.mainPanel.create_line(self.vertex[self.click_num-1][0], \
                                                          self.vertex[self.click_num-1][1], \
                                                          self.vertex[0][0], self.vertex[0][1], \
-                                                         event.x, event.y, width=2, \
-                                                         fill='red')
+                                                         event.x, event.y, width=2, fill='red')
                 self.lineIdList.append(self.lineId)
             if self.mlineId:
                 self.mainPanel.delete(self.mlineId)
@@ -732,6 +816,7 @@ class LabelTool():
             self.rect_num += 1
             self.click_num = 0
             self.lineIdList = []
+            self.selectedListboxId = -1
 
             # convert location scale
             for i in range(0,len(self.vertex)):
@@ -771,6 +856,8 @@ class LabelTool():
                 self.crop_box = (int(x1*self.scale_x),int(y1*self.scale_y),
                                  int(x2*self.scale_x),int(y2*self.scale_y))
                 self.click_num = 0
+                self.selectedListboxId = -1
+                
                 self.loadImage()
 
     def mouseMove(self, event):
@@ -818,6 +905,9 @@ class LabelTool():
                 self.rect_num -= 1
             else:
                 self.isCrop = False
+                self.crop_rate_x = 1
+                self.crop_rate_y = 1
+                self.selectedListboxId = -1
                 self.loadImage()
     
         # fresh moveing line
@@ -844,6 +934,7 @@ class LabelTool():
         self.listbox.delete(idx)
 
         self.plate.plateLists.pop(idx)
+        self.selectedListboxId = -1
         self.clear = True
 
     def clearAll(self):
@@ -897,6 +988,9 @@ class LabelTool():
             self.cur -= 1
             self.loadImage()
             self.clearLabelingBox()
+            self.crop_rate_x = 1
+            self.crop_rate_y = 1
+            self.selectedListboxId = -1
             
 
     def nextImage(self, event = None):
@@ -906,6 +1000,9 @@ class LabelTool():
             self.cur += 1
             self.loadImage()
             self.clearLabelingBox()
+            self.crop_rate_x = 1
+            self.crop_rate_y = 1
+            self.selectedListboxId = -1
 
     def gotoImage(self):
         self.isCrop = False

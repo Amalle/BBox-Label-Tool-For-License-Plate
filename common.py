@@ -52,3 +52,21 @@ def box_union(box1, box2):
 
 def box_iou(box1, box2):
     return box_intersection(box1,box2)/box_union(box1,box2)
+
+def InPolygon(point, polygon_pts):
+    nCross = 0
+    nCount = len(polygon_pts)
+    for i in range(nCount):
+        p1 = polygon_pts[i]
+        p2 = polygon_pts[(i+1)%nCount]
+        # 求解y=point.y与p1、p2的交点
+        if point[1] < min(p1[1],p2[1]):   # 交点在p1、p2的延长线上
+            continue
+        if point[1] > max(p1[1],p2[1]):   # 交点在p1、p2的延长线上
+            continue
+        # 求交点的 X 坐标 --------------------------------------------------------------
+        x = (point[1] - p1[1])*(p2[0] - p1[0]) / (p2[1] - p1[1]) + p1[0]
+        if x > point[0]:
+            nCross += 1    # 只统计单边交点
+    # 单边交点为偶数，则点在多边形之外
+    return nCross%2 == 1
