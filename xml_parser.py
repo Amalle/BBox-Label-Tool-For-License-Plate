@@ -143,11 +143,20 @@ class Plate:
 
             vertexs = p.find('vertexs')
             if vertexs is None:
-                return False
+                vertex = p.find('vertex')
+                if vertex is None:
+                    return False
+                else:
+                    vertexs = p
+                
+            count = 0
             for ver in vertexs.iter('vertex'):
                 x = int(ver.find('x').text)
                 y = int(ver.find('y').text)
                 pbox.append([x,y])
+                count += 1
+                if count == 4:
+                    break
             characters = p.find('characters')
             if characters is None:
                 return False

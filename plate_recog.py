@@ -130,7 +130,10 @@ class Plate_recog:
     #         self.chars += pcd.PLATE_CHARS_CN[obj_cls]
     #         self.probs.append(prob)
 
-    def checkCharsBox(self,chars_box,chars_box_label,probs):
+    def checkCharsBox(self,chars_box,chars_box_label,probs,is_truncated):
+        ind_dels = [False for f in range(len(chars_box))]
+        if is_truncated:
+            return ind_dels
         # mean distance of all chars box center
         minx = 9999
         maxx = 0
@@ -150,7 +153,6 @@ class Plate_recog:
                 maxx = centerx
         mean_dist = (maxx - minx)/float(len(chars_box_label) - 1)
 
-        ind_dels = [False for f in range(len(chars_box))]
         for i in range(len(chars_box)):
             box1 = chars_box[i]
             center_x1 = box1[0] + box1[2]/2
@@ -180,7 +182,7 @@ class Plate_recog:
                 ind_dels[ind] = True
         return ind_dels
 
-    def detect(self,chars_box_label, plate_region):
+    def detect(self,chars_box_label, plate_region,is_truncated):
         wh = self.img_detect.shape
         img_show = self.img_detect.copy()
         isdet,objs = self.pr.detect(self.img_detect,wh[1],wh[0])
@@ -197,7 +199,7 @@ class Plate_recog:
                 chars.append(pcd.PLATE_CHARS_CN[obj_cls])
                 probs.append(prob)
 
-            ind_dels = self.checkCharsBox(char_boxes,chars_box_label,probs)
+            ind_dels = self.checkCharsBox(char_boxes,chars_box_label,probs,is_truncated)
             # print(ind_dels)
             self.chars = ''
             self.probs = []
@@ -232,7 +234,7 @@ class Plate_recog:
             for c in chs:
                 self.chars += c
 
-    def recogize(self,img,plate_box,chars_box,plate_region):
+    def recogize(self,img,plate_box,chars_box,plate_region,is_truncated=False):
         if not self.is_plr:
             return # algorithm initialize error
 
@@ -251,6 +253,6 @@ class Plate_recog:
 
         # detect each char
         if self.alg_type == 'detection':
-            self.detect(chars_box, plate_region)
+            self.detect(chars_box, plate_region,is_truncated)
 
         return self.chars,self.probs
