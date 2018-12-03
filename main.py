@@ -118,6 +118,8 @@ class LabelTool():
 
         # truncated   #车牌是否遮挡，默认没有遮挡(0)
         self.truncated = 0
+        # blur   #车牌是否模糊，默认没有模糊(0)
+        self.blur = 0
 
         # Plate color
         self.PLATE_COLOR = PLATE_COLORS[0]
@@ -135,7 +137,7 @@ class LabelTool():
         self.la = la.Language(self.language)
 
         # ----------------- GUI stuff ---------------------
-        # dir entry & load
+        # dir entry & load ############################################################
         self.label = Label(self.frame, text=self.la.image_dir)
         self.label.grid(row=0, column=0, sticky=E)
         self.et = StringVar()
@@ -144,7 +146,7 @@ class LabelTool():
         self.ldBtn = Button(self.frame, text=self.la.load, command=self.loadDir)
         self.ldBtn.grid(row=0, column=2, sticky=W+E)
 
-        # main panel for labeling
+        # main panel for labeling ############################################################
         self.mainPanel = Canvas(self.frame, cursor='tcross')
         self.mainPanel.bind("<Button-1>", self.mouseClick)
         self.mainPanel.bind("<ButtonRelease-1>", self.mouseClickUp)
@@ -159,9 +161,10 @@ class LabelTool():
         self.parent.bind("<F7>", self.loadPlateCache)
         self.mainPanel.grid(row=1, column=0, rowspan=6, columnspan=2, sticky=W+N)
 
-        # showing bbox info & delete bbox
+        # showing bbox info & delete bbox ##################################################
         self.rightPanel = Frame(self.frame)
         self.rightPanel.grid(row=1, column=2, rowspan=6, columnspan=1, sticky=W+N)
+
         # region
         self.pregion = Label(self.rightPanel, text=self.la.region)
         self.pregion.pack(side=TOP, expand=YES, fill=X, pady=5)
@@ -171,18 +174,28 @@ class LabelTool():
         self.pregion_list.current(0)
         self.pregion_list.bind("<<ComboboxSelected>>", self.selectPlateRegion)
         self.pregion_list.pack(side=TOP, expand=YES, fill=X)
+
         # plate number
         self.pnumber = Label(self.rightPanel, text=self.la.plate_number)
-        self.pnumber.pack(side=TOP, expand=YES, fill=X, pady=5)
+        self.pnumber.pack(side=TOP, expand=YES, fill=X)
         self.btn_plate_recog = Button(self.rightPanel, text=self.la.auto_plate_recog, command=self.plate_recognize)
         self.btn_plate_recog.pack(side=TOP, expand=YES, fill=X)
         e_number = StringVar() 
         self.pnumber_entry = Entry(self.rightPanel, textvariable=e_number)
         self.pnumber_entry.pack(side=TOP, expand=YES, fill=X)
+
+        # cheack buttons
+        self.check_btn = Frame(self.rightPanel)
         # truncated
         self.trunc_value = IntVar()
-        self.truncated_cbn = Checkbutton(self.rightPanel,variable=self.trunc_value, command=self.selectTruncated,text=self.la.truncated)
-        self.truncated_cbn.pack(side=TOP, expand=YES, fill=X)
+        self.truncated_cbn = Checkbutton(self.check_btn,variable=self.trunc_value, command=self.selectTruncated,text=self.la.truncated)
+        self.truncated_cbn.pack(side=LEFT, expand=YES, fill=Y)
+        # blur
+        self.blur_value = IntVar()
+        self.blur_cbn = Checkbutton(self.check_btn,variable=self.blur_value, command=self.selectTruncated,text=self.la.blur)
+        self.blur_cbn.pack(side=LEFT, expand=YES, fill=Y)
+        self.check_btn.pack(side=TOP, expand=YES, fill=X)
+
         # plate color
         self.pcolor = Label(self.rightPanel, text=self.la.plate_color)
         self.pcolor.pack(side=TOP, expand=YES, fill=X, pady=5)
@@ -192,6 +205,7 @@ class LabelTool():
         self.pcolor_list.current(0)
         self.pcolor_list.bind("<<ComboboxSelected>>", self.selectPlateColor)
         self.pcolor_list.pack(side=TOP, expand=YES, fill=X)
+
         # number of layer
         self.player = Label(self.rightPanel, text=self.la.plate_layer)
         self.player.pack(side=TOP, expand=YES, fill=X, pady=5)
@@ -201,6 +215,7 @@ class LabelTool():
         self.player_list.current(0)
         self.player_list.bind("<<ComboboxSelected>>", self.selectPlateLayer)
         self.player_list.pack(side=TOP, expand=YES, fill=X)
+        
         # plate list
         self.lb1 = Label(self.rightPanel, text=self.la.label_list)
         self.lb1.pack(side=TOP, expand=YES, fill=X, pady=3)
@@ -214,7 +229,7 @@ class LabelTool():
         self.btnDeleteImage = Button(self.rightPanel, text=self.la.delete_image, command=self.deleteImage)
         self.btnDeleteImage.pack(side=TOP, expand=YES, fill=X, pady=3)
 
-        # control panel for image navigation
+        # control panel for image navigation ################################################
         self.ctrPanel = Frame(self.frame)
         self.ctrPanel.grid(row=7, column=0, columnspan=3, sticky=W+E)
         self.saveBtn = Button(self.ctrPanel, text=self.la.save, width=10, command=self.saveImage)
@@ -289,6 +304,9 @@ class LabelTool():
     def selectTruncated(self,event=None):
         self.truncated = self.trunc_value.get()
 
+    def selectBlur(self, event=None):
+        self.blur = self.blur_value.get()
+
     def selectPlateColor(self,event=None):
         self.plate_color = self.pcolor_list.get()
 
@@ -324,6 +342,8 @@ class LabelTool():
         self.player_list.current(self.PLATE_LAYER.index(self.plate.plateLists[idx][5]))
         self.trunc_value.set(self.plate.plateLists[idx][6])
         self.truncated = self.trunc_value.get()
+        self.blur_value.set(self.plate.plateLists[idx][7])
+        self.blur = self.blur_value.get()
         self.showLabel()
 
     def plate_recognize(self):
@@ -681,6 +701,7 @@ class LabelTool():
         self.plate_layer = self.player_list.get()
 
         self.truncated = self.trunc_value.get()
+        self.blur = self.blur_value.get()
 
         # modify plate
         if self.selectedListboxId > -1 and not self.clear:
@@ -694,6 +715,7 @@ class LabelTool():
             self.plate.plateLists[self.selectedListboxId][4] = self.plate_color
             self.plate.plateLists[self.selectedListboxId][5] = self.plate_layer
             self.plate.plateLists[self.selectedListboxId][6] = self.truncated
+            self.plate.plateLists[self.selectedListboxId][7] = self.blur
             self.selectedListboxId = -1
             isPlateAdd = True
         # add new plate
@@ -709,7 +731,7 @@ class LabelTool():
                     self.plate.layer = self.plate_layer
                     self.plate.plate = [self.rect_num-1,self.plate.chars,
                                         self.plate.pbox,self.plate.cboxes,
-                                        self.plate.color, self.plate.layer,self.truncated]
+                                        self.plate.color, self.plate.layer,self.truncated,self.blur]
                     if self.rect_num - 1 != len(self.plate.chars):
                         messagebox.showerror(self.la.message_win_plate, self.la.plate_format_error)
                         return
@@ -721,7 +743,7 @@ class LabelTool():
                 self.plate.layer = self.plate_layer
                 self.plate.plate = [self.rect_num-1,self.plate.chars,
                                     self.plate.pbox,self.plate.cboxes,
-                                    self.plate.color, self.plate.layer,self.truncated]
+                                    self.plate.color, self.plate.layer,self.truncated,self.blur]
                 self.plate.plateLists.append(self.plate.plate)
             self.rect_num = 0
             self.plate.chars = []

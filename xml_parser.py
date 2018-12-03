@@ -52,6 +52,7 @@ class Plate:
                 layer = ''
                 char_num = 0
                 trunc = 0
+                blur = 0
 
                 if 'plate' != obj.find('targettype').text:
                     continue
@@ -65,6 +66,10 @@ class Plate:
                 if None != tc:
                     if not tc.text is None:
                         trunc = int(tc.text)
+                br = obj.find('blur')
+                if None != br:
+                    if not br.text is None:
+                        blur = int(br.text)
                 vertexs = obj.find("vertexs")
                 if None != vertexs:
                     vertex = vertexs.find('vertex')
@@ -89,7 +94,7 @@ class Plate:
                                     cbox.append([x,y])
                                 char_num += 1
                                 cboxes.append(cbox)
-                plate = [char_num,chars,pbox,cboxes,color,layer,trunc]
+                plate = [char_num,chars,pbox,cboxes,color,layer,trunc,blur]
                 self.plateLists.append(plate)
         return True
 
@@ -129,6 +134,7 @@ class Plate:
             layer = ''
             char_num = 0
             trunc = 0
+            blur = 0
 
             cr = p.find('color')
             if cr != None:
@@ -140,6 +146,10 @@ class Plate:
             if tc != None:
                 if not tc.text is None:
                     trunc = int(tc.text)
+            br = p.find('blur')
+            if br != None:
+                if not br.text is None:
+                    blur = int(br.text)
 
             vertexs = p.find('vertexs')
             if vertexs is None:
@@ -177,7 +187,7 @@ class Plate:
                         cbox.append([x,y])
                     char_num += 1
                     cboxes.append(cbox)
-            plate = [char_num,chars,pbox,cboxes,color,layer,trunc]
+            plate = [char_num,chars,pbox,cboxes,color,layer,trunc,blur]
             self.plateLists.append(plate)
         return True
         
@@ -214,12 +224,14 @@ class Plate:
             color = plate[4]
             layer = plate[5]
             trunc = plate[6]
+            blur = plate[7]
             E1 = objectify.ElementMaker(annotate=False)
             anno_tree1 = E1.object(
                 E1.targettype('plate'),
                 E1.cartype(''),
                 E1.pose(''),
                 E1.truncated(trunc),
+                E1.blur(blur),
                 E1.difficult(''),
                 E1.remark(''),
                 E1.color(color),
@@ -316,11 +328,13 @@ class Plate:
             color = plate[4]
             layer = plate[5]
             trunc = plate[6]
+            blur = plate[7]
             E_plate = objectify.ElementMaker(annotate=False)
             anno_tree_plate = E_plate.plate(
                 E_plate.color(color),
                 E_plate.mode(layer),
                 E_plate.truncated(trunc),
+                E_plate.blur(blur),
                 E_plate.version('')
             )
 

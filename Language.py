@@ -48,6 +48,7 @@ class Language:
 
             # Checkbutton
             self.truncated = 'truncated'
+            self.blur = 'blur'
 
             #button
             self.save = 'Save(F2)'
@@ -81,6 +82,7 @@ class Language:
 
             # Checkbutton
             self.truncated = '遮挡'
+            self.blur = '模糊'
 
             #button
             self.save = '保存(F2)'
