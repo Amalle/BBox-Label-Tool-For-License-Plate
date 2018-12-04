@@ -337,9 +337,17 @@ class LabelTool():
             self.PLATE_COLOR = PLATE_COLORS[self.region_no]
         self.pregion_list.current(self.region_no)
         self.pcolor_list['values'] = tuple(self.PLATE_COLOR)
-        self.pcolor_list.current(self.PLATE_COLOR.index(self.plate.plateLists[idx][4]))
+        if self.plate.plateLists[idx][4] is not None:
+            self.pcolor_list.current(self.PLATE_COLOR.index(self.plate.plateLists[idx][4]))
+        else:
+            self.pcolor_list.current(None)
         self.player_list['values'] = tuple(self.PLATE_LAYER)
-        self.player_list.current(self.PLATE_LAYER.index(self.plate.plateLists[idx][5]))
+        if self.plate.plateLists[idx][5] is not None:
+            self.player_list.current(self.PLATE_LAYER.index(self.plate.plateLists[idx][5]))
+        else:
+            self.player_list['values'] = tuple([''])
+            self.player_list.current(0)
+            self.player_list['values'] = tuple(self.PLATE_LAYER)
         self.trunc_value.set(self.plate.plateLists[idx][6])
         self.truncated = self.trunc_value.get()
         self.blur_value.set(self.plate.plateLists[idx][7])
@@ -614,25 +622,26 @@ class LabelTool():
                 self.listbox.insert(END, '%s (%d, %d)' %("".join(chars), pbox[0][0], pbox[0][1]))
                 self.listbox.itemconfig(p_num, fg=color)
 
-                # show char box
-                cboxId = []
-                for cbox in cboxes:
-                    boxId = []
-                    for i in range(0,len(cbox)-1):
-                        x1 = int(cbox[i][0]/self.scale_x)
-                        y1 = int(cbox[i][1]/self.scale_y)
-                        x2 = int(cbox[i+1][0]/self.scale_x)
-                        y2 = int(cbox[i+1][1]/self.scale_y)
+                if self.selectedListboxId != p_No:
+                    # show char box
+                    cboxId = []
+                    for cbox in cboxes:
+                        boxId = []
+                        for i in range(0,len(cbox)-1):
+                            x1 = int(cbox[i][0]/self.scale_x)
+                            y1 = int(cbox[i][1]/self.scale_y)
+                            x2 = int(cbox[i+1][0]/self.scale_x)
+                            y2 = int(cbox[i+1][1]/self.scale_y)
+                            tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=1, fill=color)
+                            boxId.append(tmpId)
+                        x1 = int(cbox[-1][0]/self.scale_x)
+                        y1 = int(cbox[-1][1]/self.scale_y)
+                        x2 = int(cbox[0][0]/self.scale_x)
+                        y2 = int(cbox[0][1]/self.scale_y)
                         tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=1, fill=color)
                         boxId.append(tmpId)
-                    x1 = int(cbox[-1][0]/self.scale_x)
-                    y1 = int(cbox[-1][1]/self.scale_y)
-                    x2 = int(cbox[0][0]/self.scale_x)
-                    y2 = int(cbox[0][1]/self.scale_y)
-                    tmpId = self.mainPanel.create_line(x1, y1, x2, y2, width=1, fill=color)
-                    boxId.append(tmpId)
-                    cboxId.append(boxId)
-                self.cboxIdList.append(cboxId)
+                        cboxId.append(boxId)
+                    self.cboxIdList.append(cboxId)
                 p_num += 1
             if self.selectedListboxId > -1:
                 self.listbox.select_set(self.selectedListboxId)
@@ -877,6 +886,14 @@ class LabelTool():
         if self.isCrop or self.rect_num != 0:
             return
         if 1 == self.click_num:
+            if event.x < 0:
+                event.x = 0
+            elif event.x > self.scale_W-1:
+                event.x = self.scale_W-1
+            if event.y < 0:
+                event.y = 0
+            elif event.y > self.scale_H-1:
+                event.y = self.scale_H-1
             x1, x2 = min(self.vertex[0][0], event.x), max(self.vertex[0][0], event.x)
             y1, y2 = min(self.vertex[0][1], event.y), max(self.vertex[0][1], event.y)
             box_w = x2 - x1
