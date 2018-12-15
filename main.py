@@ -978,10 +978,10 @@ class LabelTool():
         for line_id in self.bboxIdList[idx]:
             self.mainPanel.delete(line_id)
         self.bboxIdList.pop(idx)
-        for cboxIds in self.cboxIdList[idx]:
-            for line_id in cboxIds:
-                self.mainPanel.delete(line_id)
-        self.cboxIdList.pop(idx)
+        # for cboxIds in self.cboxIdList[idx]:
+        #     for line_id in cboxIds:
+        #         self.mainPanel.delete(line_id)
+        # self.cboxIdList.pop(idx)
         self.listbox.delete(idx)
 
         self.plate.plateLists.pop(idx)
